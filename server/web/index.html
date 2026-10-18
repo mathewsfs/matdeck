@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="dark light">
+    <title>MatDeck</title>
+    <link rel="icon" href="icon-192.png">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#0B0F17">
+    <script>
+        // Aplica tema e tamanho de fonte salvos antes do primeiro paint (evita flash)
+        (function () {
+            try {
+                var t = localStorage.getItem('matdeck.theme');
+                var f = localStorage.getItem('matdeck.font');
+                if (t === 'light') document.documentElement.setAttribute('data-theme', 'light');
+                if (f === 's' || f === 'l') document.documentElement.setAttribute('data-font', f);
+            } catch (e) {}
+        })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=1.3.1">
+</head>
+<body>
+    <!-- SVG sprite -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+        <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6 6 18M6 6l12 12"/>
+        </symbol>
+        <symbol id="i-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>
+        </symbol>
+        <symbol id="i-compress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>
+        </symbol>
+        <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/>
+        </symbol>
+    </svg>
+
+    <div class="deck-container">
+        <!-- HUD de hardware: só aparece quando o perfil define showHardwareHud === true -->
+        <section class="hardware-hud" id="hardware-hud" aria-label="Telemetria de hardware" hidden>
+            <div class="stat-card" id="hud-cpu">
+                <div class="stat-content">
+                    <span class="stat-name">CPU</span>
+                    <span class="stat-value" id="hud-cpu-val">--%</span>
+                    <span class="stat-sub" id="hud-cpu-temp">--°C</span>
+                </div>
+                <div class="stat-bar" aria-hidden="true"><div class="stat-bar-fill" id="hud-cpu-bar"></div></div>
+            </div>
+            <div class="stat-card" id="hud-gpu">
+                <div class="stat-content">
+                    <span class="stat-name">GPU</span>
+                    <span class="stat-value" id="hud-gpu-val">--%</span>
+                    <span class="stat-sub" id="hud-gpu-temp">--°C</span>
+                </div>
+                <div class="stat-bar" aria-hidden="true"><div class="stat-bar-fill" id="hud-gpu-bar"></div></div>
+            </div>
+            <div class="stat-card" id="hud-vram">
+                <div class="stat-content">
+                    <span class="stat-name">VRAM</span>
+                    <span class="stat-value" id="hud-vram-val">-- GB</span>
+                    <span class="stat-sub" id="hud-vram-pct">--%</span>
+                </div>
+                <div class="stat-bar" aria-hidden="true"><div class="stat-bar-fill" id="hud-vram-bar"></div></div>
+            </div>
+            <div class="stat-card" id="hud-ram">
+                <div class="stat-content">
+                    <span class="stat-name">RAM</span>
+                    <span class="stat-value" id="hud-ram-val">-- GB</span>
+                    <span class="stat-sub" id="hud-ram-pct">--%</span>
+                </div>
+                <div class="stat-bar" aria-hidden="true"><div class="stat-bar-fill" id="hud-ram-bar"></div></div>
+            </div>
+        </section>
+
+        <!-- Grade de teclas (deslize horizontal troca de perfil) -->
+        <main class="deck-grid-wrap" id="deck-grid-wrap">
+            <div class="deck-grid" id="deck-grid" role="group" aria-label="Teclas do deck" aria-busy="true"></div>
+            <div class="deck-overlay" id="deck-overlay" hidden>
+                <div class="deck-overlay-card">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <p class="deck-overlay-title" id="deck-overlay-title">Conectando ao servidor...</p>
+                    <p class="deck-overlay-sub" id="deck-overlay-sub">As teclas aparecem assim que o MatDeck responder.</p>
+                </div>
+            </div>
+            <div class="swipe-label" id="swipe-label" role="status" aria-live="polite" hidden></div>
+        </main>
+    </div>
+
+    <!-- Canto superior esquerdo: indicador de conexão (abre as opções) + tela cheia.
+         A 1ª tecla recebe um recorte para este bloco; em tela cheia ele se esconde e volta com um toque no canto. -->
+    <div class="deck-corner" id="deck-corner">
+        <button type="button" class="conn-dot" id="conn-dot" data-state="connecting" aria-label="Conectando..." aria-haspopup="dialog" aria-expanded="false" aria-controls="sheet">
+            <span class="conn-dot-inner" aria-hidden="true"></span>
+        </button>
+        <button type="button" class="corner-btn" id="btn-fullscreen-corner" aria-label="Tela cheia" aria-pressed="false">
+            <svg class="ico ico-expand" aria-hidden="true"><use href="#i-expand"/></svg>
+            <svg class="ico ico-compress" aria-hidden="true"><use href="#i-compress"/></svg>
+        </button>
+    </div>
+    <div class="corner-hotzone" id="corner-hotzone" aria-hidden="true"></div>
+
+    <!-- Folha de opções do tablet -->
+    <div class="sheet-backdrop" id="sheet" hidden>
+        <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+            <div class="sheet-head">
+                <span class="sheet-status">
+                    <span class="sheet-status-dot" id="sheet-status-dot" aria-hidden="true"></span>
+                    <span id="sheet-title">Conectando...</span>
+                </span>
+                <button type="button" class="sheet-close" id="sheet-close" aria-label="Fechar">
+                    <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+                </button>
+            </div>
+
+            <dl class="sheet-info">
+                <div><dt>Perfil</dt><dd id="sheet-profile">—</dd></div>
+                <div><dt>Endereço</dt><dd id="sheet-ip" class="mono">—</dd></div>
+            </dl>
+
+            <div class="sheet-row">
+                <span class="sheet-label" id="theme-label">Tema</span>
+                <div class="segmented" role="group" aria-labelledby="theme-label" id="theme-seg">
+                    <button type="button" data-theme-value="dark" aria-pressed="true">Escuro</button>
+                    <button type="button" data-theme-value="light" aria-pressed="false">Claro</button>
+                </div>
+            </div>
+
+            <div class="sheet-row">
+                <span class="sheet-label" id="font-label">Fonte das teclas</span>
+                <div class="segmented" role="group" aria-labelledby="font-label" id="font-seg">
+                    <button type="button" data-font-value="s" aria-pressed="false" aria-label="Pequena">P</button>
+                    <button type="button" data-font-value="m" aria-pressed="true" aria-label="Média">M</button>
+                    <button type="button" data-font-value="l" aria-pressed="false" aria-label="Grande">G</button>
+                </div>
+            </div>
+
+            <div class="sheet-row">
+                <span class="sheet-label" id="awake-label">Manter tela acesa</span>
+                <div class="segmented" role="group" aria-labelledby="awake-label" id="awake-seg">
+                    <button type="button" data-awake-value="on" aria-pressed="true">Sim</button>
+                    <button type="button" data-awake-value="off" aria-pressed="false">Não</button>
+                </div>
+                <span class="sheet-hint" id="awake-status" aria-live="polite"></span>
+            </div>
+
+            <button type="button" class="sheet-btn" id="btn-fullscreen">
+                <svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg>
+                <span id="btn-fullscreen-label">Tela cheia</span>
+            </button>
+
+            <a class="sheet-link" href="/manage" target="_blank" rel="noopener">
+                <svg class="ico" aria-hidden="true"><use href="#i-external"/></svg>
+                Abrir gerenciador
+            </a>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <script src="vendor/nosleep.min.js?v=1.3.1"></script>
+    <script src="app.js?v=1.3.1"></script>
+</body>
+</html>

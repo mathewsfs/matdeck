@@ -1,0 +1,247 @@
+# MatDeck 🎛️
+
+Transforma um tablet ou celular antigo com **Android 4.4.4+ (API 19)** em um Stream Deck para o seu PC Linux, com foco em **TeamSpeak, Discord e Google Meet**, mais OBS Studio, mixer de volume e telemetria de hardware.
+
+Dois componentes:
+
+- **Servidor Linux** (Node.js): painel web em `http://localhost:8888`, WebSocket para o tablet, descoberta automática por UDP, integrações com os apps.
+- **APK Android** (Java puro, sem dependências): grade de teclas em tela cheia, descobre o PC sozinho na rede Wi-Fi.
+
+---
+
+## Requisitos no PC (Fedora / KDE Wayland testado)
+
+| O que | Para quê | Como instalar |
+|---|---|---|
+| Node.js 18+ | servidor | já vem no Fedora (`sudo dnf install nodejs`) |
+| `ydotool` + serviço ativo | enviar atalhos para Discord/Meet no Wayland | `sudo dnf install ydotool` e depois o ajuste de socket descrito abaixo |
+| `kdotool` (opcional) | focar a janela certa mais rápido no KDE; detectar o app ativo em outros compositores Wayland | `sudo dnf install kdotool` (ou `cargo install kdotool`) |
+| `pactl`/`wpctl` | mixer de volume | já vem com PipeWire |
+| `python3-pyside6` | ícone do servidor na bandeja do sistema (opcional) | `sudo dnf install python3-pyside6` |
+| `lm_sensors`, `nvidia-smi` | temperatura de CPU/GPU (opcional) | `sudo dnf install lm_sensors` |
+| podman ou docker | compilar o APK sem instalar Android Studio | `sudo dnf install podman` |
+
+**Ajuste do ydotool (uma vez):** o serviço padrão do Fedora cria o socket só para root. Rode:
+
+```bash
+sudo systemctl enable --now ydotool
+sudo mkdir -p /etc/systemd/system/ydotool.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/bin/ydotoold --socket-path=/tmp/.ydotool_socket --socket-perm=0666\n' \
+  | sudo tee /etc/systemd/system/ydotool.service.d/override.conf
+sudo systemctl daemon-reload && sudo systemctl restart ydotool
+```
+
+O chip "Teclas" no painel fica verde quando o socket está utilizável.
+
+Em X11 o `xdotool` é usado no lugar de `ydotool`/`kdotool`. No KDE (Wayland ou X11) o foco de janela sem `kdotool` usa um script KWin via DBus (funciona, só é um pouco mais lento) e a detecção do app ativo usa um script KWin persistente, sem precisar de `kdotool`. No Wayland o `xdotool` nunca é usado para ler a janela ativa: ele só enxerga janelas XWayland e aborta (core dump) nas nativas; se abortar em um atalho, é desligado até reiniciar o servidor.
+
+---
+
+## Início rápido
+
+Para iniciar o servidor no dia a dia: `./start-server.sh` na pasta do projeto (ou o atalho "MatDeck" no menu, depois de rodar `./scripts/install-desktop.sh` uma vez). Ele sobe em `http://localhost:8888`, o tablet reconecta sozinho e o TeamSpeak autentica com a chave salva. Para parar: `Ctrl+C` no terminal.
+
+```bash
+./start-server.sh                 # sobe o servidor e avisa se falta ydotool/kdotool
+./scripts/install-desktop.sh      # opcional: cria o atalho "MatDeck" no menu do KDE
+./scripts/build-apk.sh            # gera dist/MatDeck-debug.apk via podman
+adb install -r dist/MatDeck-debug.apk
+```
+
+Abra o app no tablet: ele encontra o PC por broadcast UDP (porta 8889) e conecta em `ws://<ip>:8888/deck`. Se a rede bloquear broadcast, toque em **⚙ IP** no app e digite o IP do PC.
+
+Sem o APK, o navegador do tablet também funciona: `http://<ip-do-pc>:8888`.
+
+### Flatpak (instalar como aplicativo)
+
+Em vez de rodar `./start-server.sh`, dá para instalar o servidor como um app Flatpak, com ícone no menu ("MatDeck"):
+
+```bash
+./scripts/build-flatpak.sh          # compila, instala para o usuário e grava dist/MatDeck.flatpak
+flatpak run br.com.matdeck.MatDeck  # ou clique em "MatDeck" no menu
+```
+
+Abrir o app sobe o servidor (com o ícone na bandeja); se ele já estiver rodando, só abre o gerenciador no navegador. O menu de contexto do ícone no lançador tem "Abrir gerenciador". Em outro PC: `flatpak install --user dist/MatDeck.flatpak`.
+
+Como funciona: o Node roda dentro do sandbox e tudo que precisa do sistema (ydotool, pactl, qdbus/KWin, kdotool, python3 + PySide6 da bandeja) é executado no host via `flatpak-spawn --host` (`server/src/hostExec.js`), por isso o manifesto pede `--talk-name=org.freedesktop.Flatpak` e `--share=network`. Config e presets ficam em `~/.var/app/br.com.matdeck.MatDeck/data/matdeck/` (variável `MATDECK_DATA_DIR`); a chave do TeamSpeak não vai no pacote, então na primeira execução o TS pede autorização de novo (ou copie o `config.json` para essa pasta). Plugins Elgato ficam em `.../matdeck/plugins/`. Requer `flatpak-builder`; os runtimes (`org.freedesktop.Platform//26.08` e a extensão Node 24) são baixados pelo script.
+
+### Ícone na bandeja do sistema
+
+Enquanto o servidor roda, um ícone do MatDeck fica na bandeja do KDE com um ponto de estado: **verde** com tablet conectado, **âmbar** no ar sem tablet, **cinza** se o servidor parou de responder. O tooltip mostra o endereço na rede, quantos tablets estão conectados e o estado do TeamSpeak. Clique abre o gerenciador; o menu tem "Abrir deck", "Parar servidor" e "Ocultar ícone" (só esconde, o servidor continua). O ícone some sozinho quando o servidor é encerrado.
+
+Precisa de `python3-pyside6`. Para desligar: `"ui": { "tray": false }` em `server/data/config.json` ou `MATDECK_TRAY=0 ./start-server.sh`.
+
+---
+
+## Integrações
+
+### TeamSpeak (TS5 / TS6 e TS3)
+
+- **TS5/TS6** (inclusive o flatpak `com.teamspeak.TeamSpeak`): usa a API *Remote Apps* (`ws://localhost:5899`). Na primeira conexão o TeamSpeak mostra um pedido de autorização do app "MatDeck". Aceite; a chave é guardada em `server/data/config.json`.
+- **TS3**: ClientQuery (porta 25639). Cole a API key de *Tools > Options > Addons > ClientQuery* em **⚙ Configurações** no painel web (ou `TS_CLIENTQUERY_API_KEY=...`).
+- O estado do microfone, do som e de AFK vem do próprio TeamSpeak, então as teclas refletem o que está de fato ativo.
+- **Vínculo dos botões (uma vez):** a API só executa botões que você vinculou. Em *Configurações → Combinações de teclas*, clique em "+"/"Escolher" na ação (Microfone, Alto-falante, Ausente, PTT, Sussurro) e toque a tecla correspondente no painel ou no tablet. **Saia dessa página depois**: o TS ignora os botões enquanto ela está aberta. A tecla mostra "VINCULE NO TS" enquanto faltar.
+- **Tela do TeamSpeak (2x4, teclas grandes):** Microfone, Fones, AFK, PTT, **Sala** (canal atual + nº de pessoas), Quem fala, Transmissão (OFF / AO VIVO · espectadores) e fader de volume do TS.
+- **Sala** abre a lista de salas do servidor, paginada de 10 em 10, com a quantidade de pessoas em cada uma e a atual destacada. É informativa: o TS6 não permite entrar em um canal por nenhum caminho sem clicar na interface dele (a API Remote Apps não tem comando de canal, links `ts3server://` são ignorados enquanto conectado, e não há atalho de teclado).
+- **PTT e Whisper** funcionam por toque (liga/desliga). Para segurar-para-falar, mude `pttMode` para `hold` em Ajustes → TeamSpeak.
+- **Cutucadas e mensagens privadas** viram notificação no tablet (banner com vibração) e no painel; o mesmo vale para entrar em canal, conectar/desconectar e mudar AFK.
+
+### Discord (flatpak ou nativo)
+
+O Discord não expõe API local sem OAuth, então o MatDeck **foca a janela do Discord e envia os atalhos padrão** (`Ctrl+Shift+M` mute, `Ctrl+Shift+D` deafen). Isso exige `ydotool` ativo e, no KDE Wayland, `kdotool` (ou o fallback KWin).
+
+Push-to-talk: configure em *Discord > Configurações > Teclas de atalho* o mesmo atalho que está em **⚙ Configurações > Discord > PTT** no painel (padrão `Ctrl+Shift+P`).
+
+### Google Meet
+
+Funciona no navegador (Brave, Chrome, Chromium ou Firefox). O MatDeck foca a janela cujo título contém "Meet" e envia os atalhos do próprio Meet: `Ctrl+D` microfone, `Ctrl+E` câmera, `Ctrl+Alt+H` mão, `C` legendas, `Ctrl+Alt+C` chat, `Ctrl+Alt+P` participantes. "Sair da chamada" (`Ctrl+W`) só é habilitado se você marcar a opção em Configurações, para não fechar abas por engano.
+
+### Nextcloud Talk
+
+Perfil **Nextcloud Talk** (web ou app desktop Electron, flatpak `com.nextcloud.talk`). O Talk não tem API para mutar o próprio microfone, então o MatDeck foca a janela (título com "Talk") e envia os atalhos oficiais do Talk: **M** microfone, **V** câmera, **R** levantar a mão, **F** tela cheia, **C** foco no chat, **Ctrl+F** busca, **Esc** início. O estado de mic/câmera/mão nas teclas é otimista (não dá para ler do Talk); a tecla "Reiniciar estado" realinha. "Abrir Talk" usa o endereço em Ajustes → Nextcloud Talk (`nextcloud.url`). A troca automática de perfil reconhece a janela do Talk.
+
+### Spotify
+
+Perfil **Spotify** controlado por MPRIS (D-Bus de sessão, via `busctl`), sem conta de desenvolvedor nem internet no tablet. Funciona com o cliente desktop nativo ou Flatpak (`com.spotify.Client`). Teclas: **Tocando agora** (bloco com capa do álbum, faixa, artista, tempo e barra de progresso; toque pausa/retoma; fica melhor em 2×2), Play/Pause com estado real, próxima/anterior, aleatório e repetição (desligado → lista → faixa) com estado real, avançar/voltar 10 s, fader e ±5% do volume do Spotify (mixer por app), abrir/focar o Spotify e **Tocar playlist / álbum**: cole o link do Spotify (playlist, álbum, artista, faixa ou podcast) no campo da tecla no gerenciador; o MatDeck resolve nome e capa pelo oEmbed público do Spotify e grava na tecla. A capa da faixa atual é baixada pelo servidor e servida ao tablet em `/api/spotify/art/<id>`. A troca automática de perfil reconhece a janela do Spotify. Limitação: o MPRIS não expõe a fila ("próximas músicas") nem curtir faixa; isso exigiria a Web API do Spotify (app no painel de desenvolvedor + login OAuth).
+
+### OBS Studio
+
+WebSocket v5 (`ws://127.0.0.1:4455`, senha opcional em Configurações). As cenas da linha 2 são lidas do próprio OBS, o microfone e o áudio do desktop são detectados pelo nome/tipo do input, e a tecla Webcam liga/desliga a fonte de câmera da cena atual.
+
+### Plugins do Stream Deck (Elgato)
+
+O MatDeck implementa o lado "aplicativo Stream Deck" do protocolo WebSocket da Elgato (SDK v2/v3), então **plugins Node.js** do Stream Deck rodam nele sem alteração: cada plugin compatível é lançado com o Node do PC (`node bin/plugin.js -port -pluginUUID -registerEvent -info`), recebe `willAppear`/`willDisappear` conforme a tela ativa no tablet, `keyDown`/`keyUp` nos toques, e o que ele desenha (`setTitle`, `setImage`, `setState`, `showOk`/`showAlert`) aparece na tecla com a imagem ocupando a tecla inteira. Settings por tecla ficam no preset (`key.settings`), global settings em `plugins/global-settings.json`. O **Property Inspector** do plugin (a página de configuração) abre dentro do inspetor do gerenciador, com o protocolo normal (`connectElgatoStreamDeckSocket`), e só funciona com o gerenciador aberto no próprio PC (ele conecta em `127.0.0.1:9876`).
+
+- **Instalar**: gerenciador → botão de quebra-cabeça → arraste o `.streamDeckPlugin`, envie o arquivo ou cole a URL (ex.: release no GitHub). Também vale soltar o arquivo em `plugins/` e "Reler pasta". Plugins instalados ficam em `plugins/unpacked/<uuid>.sdPlugin` (no Flatpak, dentro de `~/.var/app/br.com.matdeck.MatDeck/data/matdeck/plugins/`).
+- **Marketplace**: em [marketplace.elgato.com](https://marketplace.elgato.com/stream-deck/plugins) o download exige login e, pior, o pacote baixado de lá vem com o **manifest.json criptografado** (contêiner "ELGATO", só o app Stream Deck tem a chave), então ele **não instala** no MatDeck (a mensagem de erro explica). Os demais arquivos vêm em claro, mas sem o manifesto não há como saber ações e imagens. Saída: quase todo plugin Node.js é open source e tem o `.streamDeckPlugin` sem criptografia nas releases do GitHub do autor (o Marketplace mostra o link de suporte/site); cole a URL da release em "Instalar da URL". Exemplos oficiais: `elgatosf/streamdeck-plugin-samples`.
+- **Limites**: só plugins com `CodePath` em JavaScript (campo `Nodejs` no manifesto) funcionam; plugins nativos de Windows/macOS e os plugins HTML antigos aparecem como "incompatível". Encoders/Stream Deck+ (`dialRotate`, `setFeedback`) e `switchToProfile` são ignorados. O Property Inspector exige acesso ao gerenciador por `localhost`.
+- **Diagnóstico**: cada plugin tem "Log" (stdout/stderr + `logMessage`) e "Reiniciar" no painel; um plugin que cai 3 vezes seguidas fica como "falhou". Variáveis: `MATDECK_ELGATO=0` desliga a ponte, `MATDECK_ELGATO_PORT` muda a porta (padrão 9876).
+
+### Abrir aplicativos
+
+O grupo **Abrir aplicativo** do catálogo lista os programas instalados no PC (arquivos `.desktop` do sistema, do usuário e dos flatpaks) com os ícones do tema. A tecla recebe `launch:app:<id>` e o ícone do app; o lançamento usa `gio launch` (com fallback `gtk-launch` e o `Exec` do arquivo). A lista é lida pelo host (funciona igual no Flatpak) e fica em cache por 10 min (`POST /api/apps/refresh` força).
+
+### Uso de IA (Claude Code / Codex CLI)
+
+Teclas nativas de consumo (grupo "Uso de IA"), que substituem o plugin "Claude & Codex Usage" da Elgato: **Claude: todas as janelas** (sessão de 5 h, semana e limite por modelo, ex.: Fable, cada uma com % e horário de reinício; melhor em 2×2), **Claude · 5 h / semana / modelo** (uma janela, número grande e barra), **Codex: todas as janelas** e **Codex · janela principal/secundária**. As fontes são as mesmas do plugin: as credenciais que o Claude Code guarda em `~/.claude/.credentials.json` (API `api.anthropic.com/api/oauth/usage`) e as do Codex CLI em `~/.codex/auth.json` (API `chatgpt.com/backend-api/codex/usage`), lidas pelo host; nada de chave extra. Consulta a cada 60 s (configurável), toque na tecla atualiza na hora; verde/âmbar (70%)/vermelho (90%). Se o token OAuth do Claude venceu, o MatDeck renova e grava de volta no arquivo (desligável em Ajustes → Uso de IA). Módulo: `src/aiUsage.js`.
+
+### Ventoinhas do PC (CoolerControl)
+
+Fader **Ventoinhas** (ação `vol_slider:fans`, grupo "Ventoinhas (CoolerControl)"): coloca todas as ventoinhas controláveis do PC na mesma velocidade fixa; um toque no fader devolve cada canal à curva/perfil que tinha no CoolerControl (tecla "Ventoinhas automático" faz o mesmo). Também há ±10% e presets 50%/100%. Tudo passa pela API REST do daemon `coolercontrold` (127.0.0.1:11987), que já roda como root e conhece os chips de PWM, então não precisa de sudo nem de escrever no sysfs. A API do CoolerControl 5 exige um access token (criado na GUI em Configurações → Access Tokens): informe em Ajustes → Ventoinhas ou deixe vazio para usar o token que a GUI guarda em `~/.config/org.coolercontrol.CoolerControl/CoolerControl.conf`. Bombas de water cooler (rótulo com "pump", "bomba" ou "aio") são ignoradas por padrão, e o fader tem piso de segurança (20%, configurável). Sem CoolerControl ativo o fader aparece com selo "OFF".
+
+### Mixer de volume e telemetria
+
+Faders por aplicativo (PipeWire/PulseAudio via `pactl`) e teclas de telemetria no estilo painel: cabeçalho com o rótulo à esquerda e um valor à direita, número grande no centro e, embaixo, gráfico dos últimos 60 s, barra de progresso ou uma barra por núcleo. Ações: CPU uso + gráfico, CPU por núcleo, CPU temperatura, GPU uso + gráfico, GPU temperatura, VRAM, RAM, RAM livre, Rede ↓↑ e Disco R/W (rede e disco somam as interfaces e discos físicos lidos de `/proc`). Valores atualizados a cada segundo. Não há perfis pré-montados: monte os seus no gerenciador (Novo perfil) e arraste os blocos.
+
+### Troca automática de perfil
+
+Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troca o perfil no tablet. Backends, na ordem: script KWin orientado a evento no KDE (`qdbus` + `busctl`, sem polling: o script ouve `windowActivated` e o título da janela ativa e avisa o servidor por D-Bus; se o KWin reiniciar, o script é recarregado sozinho), `kdotool` (polling de 1,5 s, uma chamada por ciclo), Hyprland/Sway e `xdotool` só em X11. Com AUTO desligado nenhum backend roda. Se um backend falhar, o motivo sai uma vez no log e o próximo assume.
+
+---
+
+## Telas do tablet
+
+- **Principal** (hub): os controles mais usados em uma tela só: mic, som, AFK, PTT e transmissão do TeamSpeak; mic e surdo do Discord; mic, câmera e mão do Meet; fader de volume do PC, mudo, "quem fala" e os botões **TeamSpeak** (perfil completo) e **Mais**.
+- **Mais opções**: perfis completos de OBS, Discord, TeamSpeak e Meet, Auto-Perfil, mídia, mixer, apps (navegador, calculadora, terminal), bloquear PC e **Voltar**.
+- As teclas do hub mostram o estado real da integração dona da ação (por exemplo, o mic do TeamSpeak fica vermelho no hub quando mutado). Qualquer preset personalizado pode misturar ações de qualquer integração e também recebe esse estado.
+- Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troca para o perfil completo daquele app; desligue o AUTO (em "Mais") se preferir ficar no hub.
+
+## Gerenciador (estilo Elgato)
+
+`http://localhost:8888/manage` (o atalho "MatDeck" do menu abre direto aqui):
+
+- **Dropdown de perfil** no topo, sem abas. Escolher um perfil ali também ativa esse perfil no tablet; se o tablet trocar, o dropdown acompanha. Menu com Novo, Duplicar, Renomear e Excluir; seletor de grade (linhas x colunas) e HUD.
+- **Aparelho desenhado** no centro com a grade do perfil e o estado vivo das teclas. Clicar seleciona (não dispara); arrastar tecla sobre tecla troca de lugar; botão direito ou Delete limpa.
+- **Painel de Ações** à direita, com busca e grupos recolhíveis (TeamSpeak, Discord, Meet, OBS, Mídia e Sistema, Telemetria, Volume por app, Trocar de tela). Arraste a ação para a tecla; no toque ou teclado, toque na ação e depois na tecla.
+- **Inspetor** embaixo: título, ícone (60 opções), badge, cores, parâmetros da ação, "Testar tecla". Salva sozinho (indicador Salvo/Salvando/Erro).
+- **Tamanho do ícone**: abaixo do seletor de ícone há um controle de 50% a 200% por tecla (campo `iconScale`). O painel inferior tem um X para recolher; clicar numa tecla reabre.
+- **Tamanho da tecla**: no inspetor, "Tamanho (colunas × linhas)" faz qualquer tecla ocupar um retângulo maior (ex.: 2 × 2 = 4 blocos), desde que as teclas cobertas estejam vazias; ícone, título e os blocos de telemetria crescem junto. Um fader de volume com 1 coluna por 2+ linhas vira uma régua estreita com trilho vertical. Campos `colSpan`/`rowSpan` na tecla.
+- **Plugins do Stream Deck**: botão de quebra-cabeça no topo abre o painel de plugins (instalar, log, reiniciar, remover); as ações dos plugins entram no catálogo e a tecla mostra a imagem do plugin; a configuração do plugin (Property Inspector) abre dentro do inspetor.
+- **Principal** e **Mais** são totalmente editáveis (o que você salva sobrepõe o layout padrão; menu `⋯` → "Restaurar layout padrão" volta ao original). OBS, Discord, TeamSpeak e Meet são somente leitura: "Duplicar para editar".
+- Menu `⋯` → **Ocultar no tablet** tira o perfil das abas, do ciclo ◀ ▶ do app e do Auto-Perfil, sem apagar (continua acessível por tecla `switch:`).
+- Menu `⋯` → **Excluir** vale para qualquer aba, inclusive as embutidas (OBS, Discord, TeamSpeak, Meet, Mais): ela some do tablet, do gerenciador e do catálogo "Trocar de tela", e o layout personalizado nela é descartado. Para trazer de volta: `⋯` → **Restaurar abas excluídas**. Só a **Principal** não pode ser excluída. (API: `DELETE /api/profiles/:id`, `POST /api/profiles/restore-all`; a lista fica em `ui.removedProfiles` na config.)
+
+O catálogo de ações vem de `GET /api/actions`; a página antiga `/` continua sendo o **deck ao vivo** que o tablet abre.
+
+O canto superior esquerdo do deck tem o ponto de conexão e o botão de tela cheia num bloco pequeno; a primeira tecla ganha um recorte para ele. Em tela cheia o bloco some depois de 3 s e volta com um toque naquele canto.
+
+No painelzinho do deck (toque no ponto de conexão) há "Manter tela acesa" (ligado por padrão): usa a Wake Lock API quando o navegador tem e, no Chrome 81 do tablet, o NoSleep.js (vídeo mudo em loop invisível). O vídeo é mudo, então começa sozinho ao abrir a página (também depois de um reload); se o navegador recusar, o próximo toque na tela ativa. O painel mostra se está ativo ou aguardando toque.
+
+**Horizontal mesmo com a rotação travada.** Em "Tela cheia" o deck trava a orientação em paisagem (Screen Orientation API), e o Android respeita isso mesmo com o bloqueio de rotação ligado. Alternativa melhor para o dia a dia: no Chrome do tablet, menu → "Adicionar à tela inicial". O atalho abre o deck sem a barra do navegador e já na horizontal (manifest com `display: standalone` e `orientation: landscape`).
+
+O deck web se atualiza sozinho: o servidor injeta uma impressão digital dos arquivos de `web/` nas páginas (`?v=` e `<meta name="matdeck-build">`) e, quando um deck conecta com versão ou impressão diferente, manda `reload`. Os arquivos estáticos vão com `Cache-Control: no-cache` (revalidação por ETag).
+
+## Painel web
+
+- **Grade ao vivo**: os mesmos botões do tablet, clicáveis no PC.
+- **Gerenciador de Tela** (modal antigo): ainda funciona, mas o gerenciador estilo Elgato em `/manage` é o recomendado.
+- **⚙ Configurações**: TeamSpeak, Discord (PTT), Meet e OBS. Salvo em `server/data/config.json` (fora do git).
+- Chips no topo mostram o estado de OBS, TeamSpeak, Discord e do envio de teclas, com a dica do que falta quando algo está cinza.
+
+---
+
+## Estrutura
+
+```
+apk-matdeck/
+├── android-client/                  # APK Android 4.4.4+ (minSdk 19, Java puro)
+│   ├── app/src/main/java/com/matdeck/client/
+│   │   ├── MainActivity.java        # ciclo de vida, perfis, HUD
+│   │   ├── DeckGridView.java        # grade responsiva
+│   │   ├── DeckKeyView.java         # tecla com ícone, badge, fader
+│   │   ├── DeckSocketClient.java    # WebSocket RFC 6455 feito à mão
+│   │   ├── NetworkDiscovery.java    # descoberta UDP
+│   │   └── models/                  # KeyConfig (merge parcial), DeckProfile
+│   └── Dockerfile                   # imagem de build com SDK 33
+├── server/
+│   ├── src/
+│   │   ├── index.js                 # HTTP + WebSocket + UDP + roteamento de ações
+│   │   ├── config.js                # config persistente (TS, Discord, Meet, OBS)
+│   │   ├── tray.js                  # sobe/encerra o ícone da bandeja junto com o servidor
+│   │   ├── hostExec.js              # exec/which com flatpak-spawn --host quando roda em Flatpak
+│   │   ├── appLauncher.js           # apps instalados (.desktop) para teclas "abrir aplicativo"
+│   │   ├── elgato/                  # pluginLoader.js (instala .streamDeckPlugin) e elgatoBridge.js (protocolo Stream Deck)
+│   │   ├── hardwareMonitor.js       # CPU/GPU/RAM assíncrono (sysfs, nvidia-smi, sensors)
+│   │   ├── spotify.js               # Spotify via MPRIS (busctl): estado, capa, comandos, oEmbed de links
+│   │   ├── fanControl.js            # ventoinhas via API do CoolerControl (velocidade fixa / voltar à curva)
+│   │   ├── aiUsage.js               # consumo Claude Code / Codex CLI (limites de uso) para teclas de telemetria
+│   │   ├── audioMixer.js            # faders por app (pactl subscribe + poll de reserva)
+│   │   ├── presetManager.js         # presets do usuário com validação
+│   │   ├── windowDetector.js        # janela ativa (script KWin por evento / kdotool / Hyprland / Sway / xdotool em X11)
+│   │   ├── actions/systemActions.js # teclas (ydotool/xdotool) e foco de janela
+│   │   ├── profiles/                # obs, discord, teamspeak, meet, nextcloud, spotify, default, more
+│   │   └── elgato/                  # leitor de .streamDeckPlugin (experimental, só listagem)
+│   ├── web/                         # painel (HTML/CSS/JS puro)
+│   └── data/                        # presets.json, config.json
+├── flatpak/                         # manifesto, .desktop, metainfo e launcher do app Flatpak
+├── scripts/
+│   ├── build-apk.sh                 # compila o APK em container
+│   ├── build-flatpak.sh             # gera e instala o Flatpak do servidor
+│   ├── install-desktop.sh           # atalho no menu do KDE
+│   ├── matdeck-launcher.sh          # sobe o servidor e abre o painel
+│   └── matdeck-tray.py              # ícone na bandeja (PySide6), iniciado pelo servidor
+└── start-server.sh
+```
+
+---
+
+## Protocolo (resumo)
+
+Servidor → cliente: `profileList`, `loadProfile`, `updateKey` (campos parciais, mesclados), `hardwareStats`, `autoDetectStatus`, `notify` (`{id,title,text,level:'info'|'success'|'warn'|'poke',ttlMs}`; teste com `POST /api/notify`). Cliente → servidor: `clientHello`, `switchProfile`, `keyDown`/`keyUp` (com `keyIndex` e `profile`), `setVolume`, `toggleMute`, `action` (botões internos de um bloco, ex. controles do Spotify). Ping/pong a cada 25 s.
+
+Ações são `prefixo:nome`: `obs:`, `discord:`, `ts:`, `meet:`, `media:`, `launch:`, `system:`, `switch:<perfil>`, `vol_slider:<app>`, `vol_step:<app>:<±n>`, `stats:<métrica>`, `toggle:auto`, `ts:channel:<id>`. Qualquer preset pode misturar ações de qualquer integração.
+
+---
+
+## Ícones
+
+Os ícones das teclas vêm de [Lucide](https://lucide.dev) (ISC) e [Simple Icons](https://simpleicons.org) (CC0), rasterizados em PNG 96x96 por `server/scripts/build-icons.js` (precisa de `magick`). Veja `server/src/ICONS-LICENSE.md`.
+
+## Limitações conhecidas
+
+- Trocar de canal do TeamSpeak 6 pelo tablet não é possível (ver acima).
+
+- Plugins Elgato (`.streamDeckPlugin`) são apenas listados; a execução ainda não está ligada às teclas.
+- Discord e Meet dependem de foco de janela + atalho: se o atalho for alterado no app, mude também no MatDeck.
+- O navegador do Android 4.4 não roda o painel web moderno (use o APK).
+- Windows e macOS têm só o caminho básico de teclas; o foco do projeto é Linux.

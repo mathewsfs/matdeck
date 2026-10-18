@@ -1,0 +1,40 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.matdeck.client'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.matdeck.client"
+        minSdk 19        // Android 4.4 KitKat compatibility
+        targetSdk 19     // Optimized for Android 4.4.4
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+}
+
+dependencies {
+    // Zero external dependencies needed!
+    // Native Android SDK provides all UI, Socket, JSON, and network capabilities.
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MatDeck</string>
+    <string name="status_connecting">Conectando ao PC...</string>
+    <string name="status_connected">Conectado</string>
+    <string name="status_disconnected">Desconectado</string>
+    <string name="profile_default">Padrão</string>
+    <string name="settings">Configurações</string>
+    <string name="server_ip">IP do Computador</string>
+    <string name="server_port">Porta</string>
+    <string name="save">Salvar</string>
+    <string name="auto_detect">AUTO</string>
+</resources>

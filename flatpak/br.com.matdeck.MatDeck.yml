@@ -1,0 +1,58 @@
+# Manifesto Flatpak do servidor MatDeck.
+# Build: ./scripts/build-flatpak.sh (gera e instala para o usuário, e grava dist/MatDeck.flatpak)
+#
+# O servidor Node roda dentro do sandbox; ydotool, pactl, qdbus, kdotool e o ícone da bandeja
+# (python3 + PySide6) rodam no host via `flatpak-spawn --host` (server/src/hostExec.js).
+app-id: br.com.matdeck.MatDeck
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.node24
+command: matdeck
+finish-args:
+  - --share=network                          # HTTP/WebSocket para o tablet e broadcast UDP
+  - --talk-name=org.freedesktop.Flatpak      # flatpak-spawn --host (comandos do sistema e bandeja)
+  - --socket=wayland                         # só para o servidor saber que há sessão gráfica (bandeja)
+  - --socket=fallback-x11
+  - --env=MATDECK_FLATPAK=1
+build-options:
+  append-path: /usr/lib/sdk/node24/bin
+modules:
+  - name: matdeck
+    buildsystem: simple
+    build-commands:
+      # Node vem da extensão do SDK e é copiado para o app (o runtime não traz Node)
+      - install -Dm755 /usr/lib/sdk/node24/bin/node /app/bin/node
+      - mkdir -p /app/share/matdeck
+      - cp -r server /app/share/matdeck/server
+      - cp -r scripts /app/share/matdeck/scripts
+      - install -Dm755 matdeck.sh /app/bin/matdeck
+      - install -Dm644 br.com.matdeck.MatDeck.desktop /app/share/applications/br.com.matdeck.MatDeck.desktop
+      - install -Dm644 br.com.matdeck.MatDeck.metainfo.xml /app/share/metainfo/br.com.matdeck.MatDeck.metainfo.xml
+      - for s in 64 128 192; do install -Dm644 icons/$s.png /app/share/icons/hicolor/${s}x${s}/apps/br.com.matdeck.MatDeck.png; done
+    sources:
+      - type: dir
+        path: ../server
+        dest: server
+        skip:
+          - data                  # config.json (chave do TS) e presets ficam fora do pacote
+          - node_modules/.cache
+          - scripts               # build-icons.js e migrações, só de desenvolvimento
+      - type: dir
+        path: ../scripts
+        dest: scripts
+        skip:
+          - build-apk.sh
+          - build-flatpak.sh
+          - install-desktop.sh
+          - matdeck-launcher.sh
+      - type: file
+        path: matdeck.sh
+      - type: file
+        path: br.com.matdeck.MatDeck.desktop
+      - type: file
+        path: br.com.matdeck.MatDeck.metainfo.xml
+      - type: dir
+        path: icons
+        dest: icons

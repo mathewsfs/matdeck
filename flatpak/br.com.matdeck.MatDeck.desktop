@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=MatDeck
+Comment=Stream Deck para tablet Android: servidor e painel de controle
+Exec=matdeck
+Icon=br.com.matdeck.MatDeck
+Terminal=false
+Categories=AudioVideo;Utility;
+Keywords=streamdeck;obs;discord;teamspeak;meet;
+Actions=open;
+
+[Desktop Action open]
+Name=Abrir gerenciador
+Exec=matdeck open

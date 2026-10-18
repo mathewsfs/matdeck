@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>MatDeck - Gerenciar</title>
+    <link rel="icon" href="data:,">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="manage.css?v=1.3.1">
+</head>
+<body>
+    <!-- Ícones da interface (SVG inline, traço 2px) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+        <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+        <symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+        <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></symbol>
+        <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8z"/></symbol>
+        <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></symbol>
+        <symbol id="i-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+        <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+        <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.9 10.9 0 0 1 12 20c-7 0-11-8-11-8a20 20 0 0 1 5.1-6M9.9 4.2A10 10 0 0 1 12 4c7 0 11 8 11 8a20 20 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M1 1l22 22"/></symbol>
+        <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></symbol>
+        <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+        <symbol id="i-keyboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 13h6"/></symbol>
+        <symbol id="i-puzzle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19.4 14.9a2.1 2.1 0 1 0-1.4-3.9V8a1 1 0 0 0-1-1h-3a2.1 2.1 0 1 0-3.9 1.4H7a1 1 0 0 0-1 1v3a2.1 2.1 0 1 1 0 3.9V20a1 1 0 0 0 1 1h3a2.1 2.1 0 1 1 3.9 0H17a1 1 0 0 0 1-1v-3a2.1 2.1 0 1 0 1.4-2.1z"/></symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+        <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-5.9-2.5L3 14.5a2 2 0 0 1 3-2.6L8 14"/></symbol>
+    </svg>
+
+    <!-- Barra superior -->
+    <header class="mg-top">
+        <div class="top-left">
+            <a class="brand" href="/" title="Abrir o deck ao vivo">
+                <svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>
+                <span>MatDeck</span>
+            </a>
+
+            <div class="profile-picker" id="profile-picker">
+                <button type="button" class="picker-btn" id="profile-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="profile-pop" aria-label="Perfil em edição">
+                    <span class="picker-icon" id="profile-btn-icon" aria-hidden="true"></span>
+                    <span class="picker-text">
+                        <span class="picker-name" id="profile-btn-name">Carregando…</span>
+                        <span class="picker-meta" id="profile-btn-meta"></span>
+                    </span>
+                    <svg class="ico picker-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+                </button>
+                <div class="popover picker-pop" id="profile-pop" hidden>
+                    <ul role="listbox" id="profile-list" aria-label="Perfis"></ul>
+                </div>
+            </div>
+
+            <div class="profile-menu-wrap">
+                <button type="button" class="icon-btn" id="profile-menu-btn" aria-label="Opções do perfil" aria-haspopup="menu" aria-expanded="false" aria-controls="profile-menu" data-tip="Opções do perfil">
+                    <svg class="ico" aria-hidden="true"><use href="#i-more"/></svg>
+                </button>
+                <div class="popover menu-pop" id="profile-menu" hidden>
+                    <div class="menu-items" id="menu-items" role="menu">
+                        <button type="button" role="menuitem" class="menu-item" data-act="new"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Novo perfil</button>
+                        <button type="button" role="menuitem" class="menu-item" data-act="duplicate"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg>Duplicar</button>
+                        <button type="button" role="menuitem" class="menu-item" data-act="rename" id="menu-rename"><svg class="ico" aria-hidden="true"><use href="#i-pencil"/></svg>Renomear</button>
+                        <div class="menu-sep" role="separator"></div>
+                        <button type="button" role="menuitem" class="menu-item" data-act="visibility" id="menu-visibility"><svg class="ico" aria-hidden="true"><use href="#i-eye-off"/></svg><span>Ocultar no tablet</span></button>
+                        <p class="menu-hint">Ocultar só tira o perfil das abas e do ciclo ◀ ▶ do tablet; ele continua acessível por “Trocar de tela” e por aqui.</p>
+                        <div class="menu-sep" role="separator"></div>
+                        <button type="button" role="menuitem" class="menu-item" data-act="restore-layout" id="menu-restore-layout" hidden><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg>Restaurar layout padrão</button>
+                        <button type="button" role="menuitem" class="menu-item" data-act="restore-tabs" id="menu-restore-tabs" hidden><svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg><span>Restaurar abas excluídas</span></button>
+                        <button type="button" role="menuitem" class="menu-item menu-danger" data-act="delete" id="menu-delete"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Excluir</button>
+                        <p class="menu-hint" id="menu-delete-hint" hidden>Abas embutidas excluídas somem do tablet e daqui, mas podem voltar em “Restaurar abas excluídas”.</p>
+                    </div>
+                    <form class="menu-form" id="menu-form" hidden novalidate>
+                        <h3 id="menu-form-title">Novo perfil</h3>
+                        <label class="field">
+                            <span>Nome</span>
+                            <input type="text" id="menu-form-name" class="form-input" maxlength="60" autocomplete="off" required>
+                        </label>
+                        <label class="field" id="menu-form-id-field">
+                            <span>Identificador <span class="label-opt">(letras minúsculas, números, - e _)</span></span>
+                            <input type="text" id="menu-form-id" class="form-input mono" maxlength="41" autocomplete="off" spellcheck="false">
+                        </label>
+                        <p class="field-error" id="menu-form-error" role="alert" hidden></p>
+                        <div class="menu-form-actions">
+                            <button type="button" class="btn btn-secondary" id="menu-form-cancel">Cancelar</button>
+                            <button type="submit" class="btn btn-primary" id="menu-form-ok">Criar</button>
+                        </div>
+                    </form>
+                    <div class="menu-confirm" id="menu-confirm" hidden>
+                        <p id="menu-confirm-text"></p>
+                        <div class="menu-form-actions">
+                            <button type="button" class="btn btn-secondary" id="menu-confirm-cancel">Cancelar</button>
+                            <button type="button" class="btn btn-danger" id="menu-confirm-ok">Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="save-state" id="save-state" aria-live="polite" data-state="idle" title="Estado do salvamento automático"></button>
+        </div>
+
+        <div class="top-center">
+            <div class="grid-ctl" role="group" aria-label="Grade do perfil">
+                <label class="grid-field">
+                    <span>Linhas</span>
+                    <select id="sel-rows" class="form-select compact" aria-label="Linhas"></select>
+                </label>
+                <span class="grid-x" aria-hidden="true">×</span>
+                <label class="grid-field">
+                    <span>Colunas</span>
+                    <select id="sel-cols" class="form-select compact" aria-label="Colunas"></select>
+                </label>
+            </div>
+            <label class="switch" data-tip="Mostrar o HUD de CPU/GPU/RAM no tablet neste perfil">
+                <input type="checkbox" id="chk-hud" aria-label="Mostrar HUD de hardware no tablet">
+                <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                <span class="switch-label">Mostrar HUD</span>
+            </label>
+        </div>
+
+        <div class="top-right">
+            <div class="chips" id="status-chips" aria-label="Estado das integrações">
+                <span class="chip" id="chip-obs" data-state="off"><i class="dot" aria-hidden="true"></i>OBS</span>
+                <span class="chip" id="chip-ts" data-state="off"><i class="dot" aria-hidden="true"></i>TS</span>
+                <span class="chip" id="chip-discord" data-state="off"><i class="dot" aria-hidden="true"></i>Discord</span>
+                <span class="chip" id="chip-keys" data-state="off"><i class="dot" aria-hidden="true"></i>Teclas</span>
+            </div>
+            <button type="button" class="tbtn btn-auto" id="btn-auto" aria-pressed="false" data-tip="Troca automática de perfil pela janela em foco">
+                <svg class="ico" aria-hidden="true"><use href="#i-auto"/></svg>
+                <span>AUTO</span>
+                <span class="tbtn-state" id="btn-auto-state">OFF</span>
+            </button>
+            <button type="button" class="icon-btn" id="btn-plugins" aria-label="Plugins do Stream Deck" data-tip="Plugins do Stream Deck (Elgato)">
+                <svg class="ico" aria-hidden="true"><use href="#i-puzzle"/></svg>
+            </button>
+            <button type="button" class="icon-btn" id="btn-settings" aria-label="Ajustes" data-tip="Ajustes das integrações">
+                <svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg>
+            </button>
+            <a class="tbtn tbtn-primary" href="/" target="_blank" rel="noopener">
+                <svg class="ico" aria-hidden="true"><use href="#i-external"/></svg>
+                <span>Abrir Deck</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Área principal -->
+    <main class="mg-main">
+        <section class="stage" id="stage" aria-label="Aparelho">
+            <div class="stage-head">
+                <h1 class="stage-title" id="stage-title">—</h1>
+                <span class="pill pill-accent" id="stage-active-pill" hidden>Ativo no tablet</span>
+                <span class="pill pill-warn" id="stage-readonly" hidden>
+                    <svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg>Somente leitura
+                </span>
+                <span class="stage-conn" id="conn-state" data-state="connecting"><i class="dot" aria-hidden="true"></i><span id="conn-text">Conectando…</span></span>
+            </div>
+
+            <div class="device-wrap" id="device-wrap">
+                <div class="device-shell">
+                    <div class="device-bezel">
+                        <div class="device-grid" id="device-grid" role="grid" aria-label="Teclas do perfil"></div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="stage-hint" id="stage-hint">Arraste uma ação do painel à direita para uma tecla. Clique numa tecla para editá-la; clique com o botão direito para limpar.</p>
+        </section>
+
+        <aside class="actions-panel" aria-label="Ações">
+            <div class="panel-head">
+                <h2>Ações</h2>
+                <button type="button" class="link-btn" id="btn-collapse-all">Recolher tudo</button>
+            </div>
+            <div class="search">
+                <svg class="ico" aria-hidden="true"><use href="#i-search"/></svg>
+                <input type="search" id="action-search" placeholder="Buscar ações" aria-label="Buscar ações" autocomplete="off">
+            </div>
+            <div class="action-groups" id="action-groups"></div>
+            <div class="armed-bar" id="armed-bar" hidden>
+                <svg class="ico" aria-hidden="true"><use href="#i-hand"/></svg>
+                <span id="armed-text">Agora toque numa tecla</span>
+                <button type="button" class="link-btn" id="armed-cancel">Cancelar</button>
+            </div>
+        </aside>
+
+        <section class="inspector" id="inspector" aria-label="Propriedades da tecla">
+            <button type="button" class="icon-btn icon-btn-sm inspector-close" id="btn-close-inspector" aria-label="Fechar painel da tecla" data-tip="Fechar painel (clique numa tecla para abrir de novo)">
+                <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+            </button>
+
+            <div class="readonly-banner" id="readonly-banner" hidden>
+                <svg class="ico" aria-hidden="true"><use href="#i-lock"/></svg>
+                <span>Perfil embutido: somente leitura.</span>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-dup-to-edit">Duplicar para editar</button>
+            </div>
+
+            <div class="inspector-empty" id="inspector-empty">
+                <svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg>
+                <span>Selecione uma tecla no aparelho para editar título, ícone, cores e ação.</span>
+            </div>
+
+            <form class="inspector-form" id="inspector-form" hidden novalidate>
+                <div class="insp-preview">
+                    <div class="insp-preview-key" id="insp-preview"></div>
+                    <span class="insp-index" id="insp-index">Tecla 1</span>
+                </div>
+
+                <fieldset class="insp-col">
+                    <legend class="sr-only">Texto</legend>
+                    <label class="field">
+                        <span>Título</span>
+                        <input type="text" id="f-title" class="form-input" maxlength="24" autocomplete="off">
+                    </label>
+                    <label class="field">
+                        <span>Badge <span class="label-opt">(canto superior)</span></span>
+                        <input type="text" id="f-badge" class="form-input" maxlength="8" autocomplete="off" placeholder="ex.: MUDO">
+                    </label>
+                </fieldset>
+
+                <fieldset class="insp-col">
+                    <legend class="sr-only">Aparência</legend>
+                    <div class="field">
+                        <span>Ícone</span>
+                        <div class="icon-field">
+                            <button type="button" class="icon-pick-btn" id="f-icon-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="icon-pop">
+                                <span class="icon-pick-thumb" id="f-icon-thumb"></span>
+                                <span id="f-icon-name">Sem ícone</span>
+                                <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg>
+                            </button>
+                        </div>
+                        <div class="icon-scale" id="icon-scale-row" hidden>
+                            <input type="range" id="f-icon-scale" min="50" max="200" step="10" value="100" aria-label="Tamanho do ícone (%)">
+                            <output id="f-icon-scale-out" for="f-icon-scale">100%</output>
+                        </div>
+                    </div>
+                    <div class="colors">
+                        <div class="color-field">
+                            <span>Fundo</span>
+                            <div class="color-ctl">
+                                <input type="color" id="f-bg" aria-label="Cor de fundo">
+                                <button type="button" class="icon-btn icon-btn-sm" id="f-bg-clear" aria-label="Remover cor de fundo" data-tip="Padrão"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+                            </div>
+                        </div>
+                        <div class="color-field">
+                            <span>Borda</span>
+                            <div class="color-ctl">
+                                <input type="color" id="f-border" aria-label="Cor da borda">
+                                <button type="button" class="icon-btn icon-btn-sm" id="f-border-clear" aria-label="Remover cor da borda" data-tip="Padrão"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+                            </div>
+                        </div>
+                        <div class="color-field">
+                            <span>Texto</span>
+                            <div class="color-ctl">
+                                <input type="color" id="f-title-color" aria-label="Cor do texto">
+                                <button type="button" class="icon-btn icon-btn-sm" id="f-title-color-clear" aria-label="Remover cor do texto" data-tip="Padrão"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+                            </div>
+                        </div>
+                        <div class="color-field">
+                            <span>Badge</span>
+                            <div class="color-ctl">
+                                <input type="color" id="f-badge-color" aria-label="Cor do badge">
+                                <button type="button" class="icon-btn icon-btn-sm" id="f-badge-color-clear" aria-label="Remover cor do badge" data-tip="Padrão"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+                            </div>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="insp-col insp-action">
+                    <legend class="sr-only">Ação</legend>
+                    <div class="field">
+                        <span>Ação</span>
+                        <div class="action-box" id="action-box">
+                            <span class="action-box-icon" id="action-box-icon" aria-hidden="true"></span>
+                            <span class="action-box-text">
+                                <span class="action-box-name" id="action-box-name">Nenhuma ação</span>
+                                <span class="action-box-group" id="action-box-group">Arraste uma ação do painel ou toque numa ação e depois na tecla.</span>
+                            </span>
+                            <button type="button" class="icon-btn icon-btn-sm" id="btn-remove-action" aria-label="Remover ação" data-tip="Remover ação" hidden><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+                        </div>
+                    </div>
+                    <label class="field" id="param-switch" hidden>
+                        <span>Perfil de destino</span>
+                        <select id="f-switch-target" class="form-select"></select>
+                    </label>
+                    <label class="field" id="param-spotify" hidden>
+                        <span>Link do Spotify <span class="label-opt">(playlist, álbum, artista ou faixa)</span></span>
+                        <input type="text" id="f-spotify-uri" class="form-input mono" placeholder="https://open.spotify.com/playlist/…" autocomplete="off" spellcheck="false">
+                        <span class="span-hint" id="spotify-uri-hint"></span>
+                    </label>
+                    <label class="field" id="param-app" hidden>
+                        <span>Aplicativo</span>
+                        <select id="f-vol-app" class="form-select"></select>
+                    </label>
+                    <div class="field" id="param-span" hidden>
+                        <span>Tamanho <span class="label-opt">(colunas × linhas)</span></span>
+                        <div class="span-ctl">
+                            <select id="f-col-span" class="form-select compact" aria-label="Colunas que a tecla ocupa"></select>
+                            <span class="grid-x" aria-hidden="true">×</span>
+                            <select id="f-row-span" class="form-select compact" aria-label="Linhas que a tecla ocupa"></select>
+                            <span class="span-hint" id="span-hint"></span>
+                        </div>
+                    </div>
+                    <label class="field" id="param-step" hidden>
+                        <span>Passo</span>
+                        <select id="f-vol-step" class="form-select">
+                            <option value="+5">+5%</option>
+                            <option value="-5">−5%</option>
+                            <option value="+10">+10%</option>
+                            <option value="-10">−10%</option>
+                        </select>
+                    </label>
+                </fieldset>
+
+                <div class="pi-wrap" id="param-plugin" hidden>
+                    <div class="pi-head">
+                        <span>Configuração do plugin <strong id="pi-plugin-name"></strong></span>
+                        <button type="button" class="link-btn" id="pi-reload">Recarregar</button>
+                    </div>
+                    <div class="pi-frame" id="pi-frame-wrap"></div>
+                    <p class="pi-note" id="pi-note" hidden></p>
+                </div>
+
+                <div class="insp-tools">
+                    <button type="button" class="btn btn-secondary" id="btn-test-key">
+                        <svg class="ico" aria-hidden="true"><use href="#i-play"/></svg>Testar tecla
+                    </button>
+                    <button type="button" class="btn btn-danger" id="btn-clear-key">
+                        <svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Limpar tecla
+                    </button>
+                </div>
+            </form>
+
+            <!-- Popover de ícones -->
+            <div class="popover icon-pop" id="icon-pop" role="dialog" aria-label="Escolher ícone" hidden>
+                <div class="icon-pop-head">
+                    <input type="search" id="icon-search" class="form-input" placeholder="Filtrar ícones" aria-label="Filtrar ícones" autocomplete="off">
+                    <button type="button" class="btn btn-secondary btn-sm" id="icon-none">Sem ícone</button>
+                </div>
+                <div class="icon-grid" id="icon-grid" role="listbox" aria-label="Ícones"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Ajustes (portado do deck) -->
+    <div class="modal-overlay" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true">
+        <div class="modal-content modal-settings">
+            <div class="modal-header">
+                <h2 id="settings-title">
+                    <svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg>
+                    Ajustes
+                </h2>
+                <button type="button" class="modal-close" id="btn-close-settings" aria-label="Fechar ajustes">
+                    <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+                </button>
+            </div>
+
+            <form class="modal-body settings-body" id="settings-form" novalidate>
+                <div class="settings-loading" id="settings-loading">
+                    <span class="spinner" aria-hidden="true"></span> Carregando configurações…
+                </div>
+
+                <div class="settings-sections" id="settings-sections" hidden>
+                    <section class="settings-section">
+                        <h3>OBS Studio</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-obs-url">Endereço do WebSocket</label>
+                                <input type="text" id="cfg-obs-url" class="form-input mono" data-path="obs.url" placeholder="ws://127.0.0.1:4455" autocomplete="off" spellcheck="false">
+                                <p class="hint">Em OBS: Ferramentas &gt; Configurações do Servidor WebSocket.</p>
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-obs-password">Senha do WebSocket <span class="label-opt">(opcional)</span></label>
+                                <div class="input-with-action">
+                                    <input type="password" id="cfg-obs-password" class="form-input" data-path="obs.password" autocomplete="off" spellcheck="false">
+                                    <button type="button" class="icon-btn btn-reveal" data-reveal="cfg-obs-password" aria-label="Mostrar senha" aria-pressed="false">
+                                        <svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>TeamSpeak</h3>
+                        <div class="control-group">
+                            <label for="cfg-ts-mode">Modo de conexão</label>
+                            <select id="cfg-ts-mode" class="form-select" data-path="teamspeak.mode">
+                                <option value="auto">Automático (tenta Remote Apps, depois ClientQuery)</option>
+                                <option value="remote">Remote Apps (TeamSpeak 5 / 6)</option>
+                                <option value="clientquery">ClientQuery (TeamSpeak 3)</option>
+                            </select>
+                            <p class="hint">No TS5/TS6 ative Configurações &gt; Remote Apps e autorize o MatDeck quando o aviso aparecer.</p>
+                        </div>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-ts-host">Host</label>
+                                <input type="text" id="cfg-ts-host" class="form-input" data-path="teamspeak.host" placeholder="127.0.0.1" autocomplete="off">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-ts-remote-port">Porta Remote Apps</label>
+                                <input type="number" id="cfg-ts-remote-port" class="form-input" data-path="teamspeak.remotePort" data-type="number" min="1" max="65535" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-ts-cq-port">Porta ClientQuery</label>
+                                <input type="number" id="cfg-ts-cq-port" class="form-input" data-path="teamspeak.clientQueryPort" data-type="number" min="1" max="65535" inputmode="numeric">
+                            </div>
+                        </div>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-ts-api-key">Chave Remote Apps <span class="label-opt">(opcional)</span></label>
+                                <div class="input-with-action">
+                                    <input type="password" id="cfg-ts-api-key" class="form-input" data-path="teamspeak.apiKey" autocomplete="off" spellcheck="false">
+                                    <button type="button" class="icon-btn btn-reveal" data-reveal="cfg-ts-api-key" aria-label="Mostrar chave" aria-pressed="false">
+                                        <svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>
+                                    </button>
+                                </div>
+                                <p class="hint">Vazio: o MatDeck pede autorização e guarda a chave sozinho.</p>
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-ts-cq-key">Chave ClientQuery (TS3)</label>
+                                <div class="input-with-action">
+                                    <input type="password" id="cfg-ts-cq-key" class="form-input" data-path="teamspeak.clientQueryApiKey" autocomplete="off" spellcheck="false">
+                                    <button type="button" class="icon-btn btn-reveal" data-reveal="cfg-ts-cq-key" aria-label="Mostrar chave" aria-pressed="false">
+                                        <svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label for="cfg-ts-ptt">Push to Talk</label>
+                            <select id="cfg-ts-ptt" class="form-select" data-path="teamspeak.pttMode">
+                                <option value="toggle">Toque liga, toque desliga</option>
+                                <option value="hold">Segurar para falar</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Discord</h3>
+                        <div class="control-group">
+                            <label for="cfg-discord-ptt">Atalho de Push-to-Talk / Mudo</label>
+                            <input type="text" id="cfg-discord-ptt" class="form-input mono" data-path="discord.pttKey" placeholder="ctrl+shift+p" autocomplete="off" spellcheck="false">
+                            <p class="hint">Configure o mesmo atalho em Discord &gt; Configurações &gt; Teclas de atalho.</p>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Google Meet</h3>
+                        <div class="control-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="cfg-meet-close-tab" data-path="meet.allowCloseTab" data-type="boolean">
+                                Permitir que "Sair da chamada" feche a aba do navegador
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Uso de IA (Claude Code / Codex CLI)</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-ai-claude">Credenciais do Claude Code <span class="label-opt">(opcional)</span></label>
+                                <input type="text" id="cfg-ai-claude" class="form-input mono" data-path="ai.claudeCredentialsPath" placeholder="~/.claude/.credentials.json" autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-ai-codex">Credenciais do Codex CLI <span class="label-opt">(opcional)</span></label>
+                                <input type="text" id="cfg-ai-codex" class="form-input mono" data-path="ai.codexAuthPath" placeholder="~/.codex/auth.json" autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-ai-poll">Intervalo de consulta (s)</label>
+                                <input type="number" id="cfg-ai-poll" class="form-input" data-path="ai.pollSeconds" data-type="number" min="15" max="3600" inputmode="numeric">
+                            </div>
+                        </div>
+                        <div class="control-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="cfg-ai-refresh" data-path="ai.refreshClaudeToken" data-type="boolean">
+                                Renovar o token do Claude quando vencer (grava no arquivo de credenciais, como o Claude Code faz)
+                            </label>
+                        </div>
+                        <p class="settings-note">As teclas "Uso de IA" leem as credenciais que o Claude Code e o Codex CLI já guardam neste usuário e consultam as mesmas APIs de uso que o plugin "Claude & Codex Usage" da Elgato, sem precisar do plugin. Cores: verde, âmbar a partir de 70% e vermelho a partir de 90%. Um toque na tecla atualiza na hora.</p>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Ventoinhas (CoolerControl)</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-fans-token">Access token do CoolerControl <span class="label-opt">(opcional)</span></label>
+                                <div class="input-with-btn">
+                                    <input type="password" id="cfg-fans-token" class="form-input mono" data-path="fans.token" placeholder="cc_… (vazio = usa o da GUI do CoolerControl)" autocomplete="off" spellcheck="false">
+                                </div>
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-fans-min">Velocidade mínima do fader (%)</label>
+                                <input type="number" id="cfg-fans-min" class="form-input" data-path="fans.minPercent" data-type="number" min="0" max="100" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-fans-exclude">Ignorar canais cujo nome contenha</label>
+                                <input type="text" id="cfg-fans-exclude" class="form-input mono" data-path="fans.excludePattern" placeholder="pump|bomba|aio" autocomplete="off" spellcheck="false">
+                            </div>
+                        </div>
+                        <p class="settings-note">O fader "Ventoinhas" usa o daemon do CoolerControl (porta 11987) para colocar todas as ventoinhas controláveis na mesma velocidade fixa; um toque devolve cada uma à curva/perfil que tinha. Bombas de water cooler são ignoradas pelo padrão acima. Em CoolerControl 5 a API exige um access token (Configurações → Access Tokens, na GUI); se o campo ficar vazio, o MatDeck usa o token que a GUI já guardou neste usuário.</p>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Nextcloud Talk</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-nc-url">Endereço do Talk (tecla "Abrir Talk")</label>
+                                <input type="url" id="cfg-nc-url" class="form-input mono" data-path="nextcloud.url" placeholder="https://cloud.exemplo.com/apps/spreed" autocomplete="off" spellcheck="false">
+                            </div>
+                        </div>
+                        <p class="settings-note">As teclas enviam os atalhos do próprio Talk (M microfone, V câmera, R mão, F tela cheia) para a janela em foco, no navegador ou no app Nextcloud Talk. O Talk não tem API para ler o estado do microfone, por isso o estado nas teclas é otimista; "Reiniciar estado" realinha.</p>
+                    </section>
+                </div>
+
+                <div class="settings-error" id="settings-error" role="alert" hidden></div>
+            </form>
+
+            <div class="modal-footer">
+                <span class="settings-status" id="settings-status"></span>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-cancel-settings">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-settings" disabled>Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Plugins (Stream Deck / Elgato) -->
+    <div class="modal-overlay" id="plugins-modal" role="dialog" aria-modal="true" aria-labelledby="plugins-title" aria-hidden="true">
+        <div class="modal-content modal-plugins">
+            <div class="modal-header">
+                <h2 id="plugins-title">
+                    <svg class="ico" aria-hidden="true"><use href="#i-puzzle"/></svg>
+                    Plugins do Stream Deck
+                </h2>
+                <button type="button" class="modal-close" id="btn-close-plugins" aria-label="Fechar plugins">
+                    <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+                </button>
+            </div>
+            <div class="modal-body plugins-body">
+                <div class="plugin-install" id="plugin-drop">
+                    <input type="url" id="plugin-url" class="form-input mono" placeholder="https://… arquivo .streamDeckPlugin (ex.: release no GitHub)" autocomplete="off" spellcheck="false" aria-label="URL do plugin">
+                    <div style="display:flex;gap:6px">
+                        <button type="button" class="btn btn-secondary" id="btn-plugin-url">Instalar da URL</button>
+                        <label class="btn btn-primary" for="plugin-file" style="cursor:pointer">
+                            <svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>Enviar arquivo
+                        </label>
+                        <input type="file" id="plugin-file" accept=".streamDeckPlugin,.zip" hidden>
+                    </div>
+                    <p class="hint">Arraste um <code>.streamDeckPlugin</code> aqui ou envie o arquivo. No <a href="https://marketplace.elgato.com/stream-deck/plugins" target="_blank" rel="noopener">Marketplace da Elgato</a> o download exige login na conta Elgato (gratuita); plugins open source têm o arquivo nas releases do GitHub. Só plugins em <strong>Node.js</strong> rodam aqui (plugins nativos de Windows/macOS não funcionam no Linux).</p>
+                </div>
+                <div class="plugin-list" id="plugin-list"></div>
+                <pre class="plugin-log" id="plugin-log" hidden></pre>
+            </div>
+            <div class="modal-footer">
+                <span class="settings-status" id="plugins-status"></span>
+                <div class="modal-footer-actions">
+                    <button type="button" class="btn btn-secondary" id="btn-plugins-reload">Reler pasta</button>
+                    <button type="button" class="btn btn-primary" id="btn-plugins-done">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <script src="manage.js?v=1.3.1"></script>
+</body>
+</html>

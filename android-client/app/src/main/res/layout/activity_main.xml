@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:padding="6dp">
+
+    <!-- Top Header Bar -->
+    <RelativeLayout
+        android:id="@+id/header_bar"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:layout_alignParentTop="true"
+        android:background="@drawable/header_bg"
+        android:paddingLeft="10dp"
+        android:paddingRight="6dp">
+
+        <!-- Connection Indicator & Status -->
+        <LinearLayout
+            android:id="@+id/status_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <View
+                android:id="@+id/status_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/badge_dot" />
+
+            <TextView
+                android:id="@+id/status_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="6dp"
+                android:text="@string/status_connecting"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Profile Selector / Navigation in Center -->
+        <LinearLayout
+            android:id="@+id/profile_selector"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/btn_prev_profile"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:text="◀"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/profile_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="8dp"
+                android:layout_marginRight="8dp"
+                android:text="MatDeck"
+                android:textColor="@color/text"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_next_profile"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:text="▶"
+                android:textColor="@color/muted"
+                android:textSize="11sp" />
+
+            <!-- Auto-detect Badge -->
+            <TextView
+                android:id="@+id/badge_auto"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="4dp"
+                android:background="@drawable/badge_auto_bg"
+                android:paddingLeft="5dp"
+                android:paddingRight="5dp"
+                android:paddingTop="1dp"
+                android:paddingBottom="1dp"
+                android:text="@string/auto_detect"
+                android:textColor="@color/accent"
+                android:textSize="8sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Header Actions: HUD Toggle, Settings & Fullscreen -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/btn_toggle_hud"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:text="HUD"
+                android:textColor="@color/accent"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_settings"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                android:text="IP"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btn_fullscreen_toggle"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:gravity="center"
+                android:text="⛶"
+                android:textColor="@color/muted"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <!-- Native Hardware Stats Frame / HUD (flat chips: label muted + value text) -->
+    <LinearLayout
+        android:id="@+id/hardware_hud"
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:layout_below="@id/header_bar"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal"
+        android:weightSum="3"
+        android:gravity="center_vertical">
+
+        <!-- CPU Chip -->
+        <LinearLayout
+            android:id="@+id/chip_cpu"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CPU  "
+                android:textColor="@color/muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/hud_cpu_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--% | --°C"
+                android:textColor="@color/text"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- GPU Chip -->
+        <LinearLayout
+            android:id="@+id/chip_gpu"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="GPU  "
+                android:textColor="@color/muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/hud_gpu_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--% | --°C"
+                android:textColor="@color/text"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- RAM Chip -->
+        <LinearLayout
+            android:id="@+id/chip_ram"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RAM  "
+                android:textColor="@color/muted"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/hud_ram_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--% | --GB"
+                android:textColor="@color/text"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Main Stream Deck Grid Container (DeckGridView is added at index 0 in code,
+         so the notification banner below stays drawn on top of the grid) -->
+    <FrameLayout
+        android:id="@+id/grid_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/hardware_hud"
+        android:layout_marginTop="4dp">
+
+        <!-- Server notification banner (overlay, never pushes the grid) -->
+        <LinearLayout
+            android:id="@+id/notify_banner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|center_horizontal"
+            android:layout_marginTop="8dp"
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:minWidth="260dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingLeft="12dp"
+            android:paddingRight="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:clickable="true"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/notify_icon"
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_marginRight="10dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/notify_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxWidth="480dp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:textColor="@color/text"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/notify_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:maxWidth="480dp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:textColor="@color/muted"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+
+</RelativeLayout>

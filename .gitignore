@@ -1,0 +1,17 @@
+node_modules/
+server/data/config.json
+plugins/
+plugins/*.streamDeckPlugin
+dist/
+android-client/.gradle/
+android-client/build/
+android-client/app/build/
+android-client/local.properties
+*.log
+.DS_Store
+server/data/presets.json.bak-*
+build/
+.flatpak-builder/
+server/data/ai-usage.json
+__pycache__/
+*.pyc

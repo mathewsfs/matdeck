@@ -1,0 +1,16 @@
+{
+  "name": "matdeck-server",
+  "version": "1.3.1",
+  "description": "Servidor do MatDeck: Stream Deck web para tablet, com perfis por app, telemetria, Spotify, ventoinhas e plugins Elgato",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "express": "^4.21.2",
+    "obs-websocket-js": "^5.0.6",
+    "ws": "^8.18.0"
+  }
+}
