@@ -94,4 +94,4 @@ function shellQuote(s) {
     return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
 
-module.exports = { isFlatpak, exec, execFile, execSync, spawn, which, firstWritableSocket };
+module.exports = { isFlatpak, HOST_ARGS, exec, execFile, execSync, spawn, which, firstWritableSocket };

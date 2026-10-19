@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const { isFlatpak } = require('./hostExec');
+const { isFlatpak, HOST_ARGS } = require('./hostExec');
 
 const TRAY_SCRIPT = path.resolve(__dirname, '../../scripts/matdeck-tray.py');
 
@@ -25,6 +25,24 @@ class TrayIndicator {
         this.lanIp = lanIp;
         this.enabled = enabled;
         this.child = null;
+    }
+
+    /**
+     * Endereço, visto do host, do proxy de D-Bus deste sandbox (montado em /run/flatpak/bus).
+     * O ícone no host se conecta por ele: para o Plasma o item passa a pertencer ao app Flatpak,
+     * e a bandeja deixa de mostrar um segundo ícone "MatDeck" de app em segundo plano.
+     */
+    static sandboxBusAddress() {
+        try {
+            const line = fs.readFileSync('/proc/self/mountinfo', 'utf8').split('\n')
+                .find((l) => l.split(' ')[4] === '/run/flatpak/bus');
+            if (!line) return null;
+            const root = line.split(' ')[3];
+            const runtimeDir = process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}`;
+            return `unix:path=${runtimeDir}${root}`;
+        } catch (e) {
+            return null;
+        }
     }
 
     static hasGraphicalSession() {
@@ -50,7 +68,12 @@ class TrayIndicator {
             if (isFlatpak) {
                 const code = fs.readFileSync(TRAY_SCRIPT, 'utf8');
                 const envArgs = Object.entries(trayEnv).map(([k, v]) => `--env=${k}=${v}`);
-                this.child = spawn('flatpak-spawn', ['--host', `--directory=${process.env.HOME || '/'}`, ...envArgs, 'python3', '-c', code], { stdio: ['pipe', 'ignore', 'pipe'] });
+                const bus = TrayIndicator.sandboxBusAddress();
+                if (bus) envArgs.push(`--env=DBUS_SESSION_BUS_ADDRESS=${bus}`);
+                else console.warn('[Tray] Proxy de D-Bus do sandbox não encontrado; o Plasma pode mostrar um segundo ícone do MatDeck.');
+                // HOST_ARGS traz --watch-bus: se o sandbox morrer de qualquer jeito (até SIGKILL),
+                // o portal encerra o python no host e o ícone não fica órfão na bandeja
+                this.child = spawn('flatpak-spawn', [...HOST_ARGS, ...envArgs, 'python3', '-c', code], { stdio: ['pipe', 'ignore', 'pipe'] });
             } else {
                 this.child = spawn('python3', [TRAY_SCRIPT], { env: { ...process.env, ...trayEnv }, stdio: ['pipe', 'ignore', 'pipe'] });
             }
@@ -79,12 +102,20 @@ class TrayIndicator {
         console.log('[Tray] Ícone na bandeja do sistema iniciado.');
     }
 
+    /** Fecha o ícone e espera (até 1 s) o processo sair: no Flatpak o SIGTERM é repassado ao host
+     *  por D-Bus, e se o servidor sair antes disso o ícone sobrevive. */
     stop() {
         this.stopping = true;
-        if (!this.child) return;
-        try { this.child.stdin.end(); } catch (e) {}
-        try { this.child.kill('SIGTERM'); } catch (e) {}
+        const child = this.child;
+        if (!child) return Promise.resolve();
         this.child = null;
+        return new Promise((resolve) => {
+            const done = () => { clearTimeout(timer); resolve(); };
+            const timer = setTimeout(done, 1000);
+            child.once('exit', done);
+            try { child.stdin.end(); } catch (e) {}
+            try { child.kill('SIGTERM'); } catch (e) {}
+        });
     }
 }
 

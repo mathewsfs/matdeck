@@ -53,6 +53,7 @@ class MatDeckServer {
         this.currentProfileId = 'default';
         this.autoDetectEnabled = true;
         this.clients = new Set();
+        this.startedAt = Date.now();
 
         this.config = new ConfigStore();
         this.hardwareMonitor = new HardwareMonitor(1000);
@@ -587,6 +588,7 @@ class MatDeckServer {
         this.app.get('/api/status', (req, res) => {
             res.json({
                 version: VERSION,
+                startedAt: this.startedAt,
                 ip: this.getLocalIp(),
                 port: HTTP_PORT,
                 profile: this.currentProfileId,
@@ -1274,7 +1276,7 @@ class MatDeckServer {
             if (this.shuttingDown) return;
             this.shuttingDown = true;
             console.log('\n[MatDeck] Encerrando...');
-            if (this.tray) this.tray.stop();
+            const trayStopped = this.tray ? this.tray.stop() : Promise.resolve();
             clearInterval(this.heartbeatTimer);
             clearInterval(this.udpTimer);
             this.hardwareMonitor.stop();
@@ -1287,7 +1289,7 @@ class MatDeckServer {
             for (const ws of this.clients) { try { ws.close(); } catch (e) {} }
             try { this.udpSocket && this.udpSocket.close(); } catch (e) {}
             // Plugins Elgato: espera saírem (SIGKILL após 1 s) para não ficarem órfãos
-            try { await this.elgatoBridge.stop(); } catch (e) {}
+            try { await Promise.all([this.elgatoBridge.stop(), trayStopped]); } catch (e) {}
             this.server.close(() => process.exit(0));
             setTimeout(() => process.exit(0), 1500).unref();
         };

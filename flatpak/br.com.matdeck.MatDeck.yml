@@ -13,6 +13,8 @@ command: matdeck
 finish-args:
   - --share=network                          # HTTP/WebSocket para o tablet e broadcast UDP
   - --talk-name=org.freedesktop.Flatpak      # flatpak-spawn --host (comandos do sistema e bandeja)
+  - --talk-name=org.kde.StatusNotifierWatcher # ícone da bandeja registrado pelo proxy do sandbox (ver tray.js)
+  - --talk-name=org.freedesktop.Notifications # aviso "MatDeck no ar" do ícone da bandeja
   - --socket=wayland                         # só para o servidor saber que há sessão gráfica (bandeja)
   - --socket=fallback-x11
   - --env=MATDECK_FLATPAK=1

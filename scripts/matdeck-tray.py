@@ -60,9 +60,13 @@ class StatusPoller(QObject):
     def _fetch(self):
         try:
             with urllib.request.urlopen(f'{BASE_URL}/api/status', timeout=1.5) as resp:
-                self.updated.emit(json.loads(resp.read().decode('utf-8')))
+                status = json.loads(resp.read().decode('utf-8'))
         except Exception:
-            self.updated.emit(None)
+            status = None
+        try:
+            self.updated.emit(status)
+        except RuntimeError:
+            pass  # app já encerrou enquanto a requisição rodava
 
 
 def fetch_base_icon():
@@ -105,11 +109,16 @@ def build_icon(dot_color, base, size=64):
 
 
 class Tray(QObject):
+    # Emitido pela thread do stdin; a conexão com app.quit vira enfileirada e roda na thread do Qt
+    server_gone = Signal()
+
     def __init__(self, app):
         super().__init__()
         self.app = app
         self.status = None
         self.announced = False
+        self.server_started_at = None
+        self.server_gone.connect(self.app.quit)
         self.base_icon = fetch_base_icon()
         self.rebuild_icons()
 
@@ -183,6 +192,15 @@ class Tray(QObject):
             if not self.base_icon.isNull():
                 self.rebuild_icons()
 
+        # Outro servidor subiu no lugar (reinício): ele cria o próprio ícone, este sai
+        started_at = status.get('startedAt')
+        if started_at:
+            if self.server_started_at is None:
+                self.server_started_at = started_at
+            elif started_at != self.server_started_at:
+                self.app.quit()
+                return
+
         clients = int(status.get('clientsConnected') or 0)
         ip = status.get('ip') or os.environ.get('MATDECK_LAN_IP') or '127.0.0.1'
         version = status.get('version') or ''
@@ -231,7 +249,8 @@ class Tray(QObject):
                 pass
         except Exception:
             pass
-        QTimer.singleShot(0, self.app.quit)
+        # Não usar QTimer aqui: esta thread não tem event loop e o timer nunca dispararia
+        self.server_gone.emit()
 
 
 def main():
