@@ -1573,3 +1573,38 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* ==========================================================================
+   Chrome 81 (tablet) não aplica gap em flexbox. O app.js detecta e põe
+   html.no-flex-gap; aqui o mesmo espaçamento vira margem entre os filhos.
+   (gap em grid funciona lá, por isso .hardware-hud e .deck-grid ficam de fora)
+   ========================================================================== */
+.no-flex-gap .deck-container > * + * { margin-top: var(--space-2); }
+.no-flex-gap .stat-card > * + * { margin-top: 4px; }
+.no-flex-gap .stat-content > * + * { margin-left: 8px; }
+.no-flex-gap .deck-overlay-card > * + * { margin-top: var(--space-2); }
+.no-flex-gap .key-stat > * + * { margin-top: 2px; }
+.no-flex-gap .key-stat-head > * + * { margin-left: 8px; }
+.no-flex-gap .key-stat-rows > * + * { margin-top: 2px; }
+.no-flex-gap .key-stat-row > * + * { margin-left: 8px; }
+.no-flex-gap .key-auto-btn > * + * { margin-top: 3px; }
+.no-flex-gap .key-auto-label > * + * { margin-left: 4px; }
+.no-flex-gap .sheet > * + * { margin-top: var(--space-3); }
+.no-flex-gap .sheet-head > * + * { margin-left: var(--space-2); }
+.no-flex-gap .sheet-status > * + * { margin-left: 8px; }
+.no-flex-gap .sheet-info > * + * { margin-top: 4px; }
+.no-flex-gap .sheet-info > div > * + * { margin-left: var(--space-3); }
+.no-flex-gap .sheet-row > * { margin-right: var(--space-3); }
+.no-flex-gap .sheet-row > *:last-child,
+.no-flex-gap .sheet-row > .sheet-hint { margin-right: 0; }
+.no-flex-gap .segmented > * + * { margin-left: 2px; }
+.no-flex-gap .sheet-btn > * + * { margin-left: 8px; }
+.no-flex-gap .sheet-link > * + * { margin-left: 6px; }
+.no-flex-gap .toast-container > * + * { margin-top: var(--space-2); }
+.no-flex-gap .toast > * + * { margin-left: 10px; }
+.no-flex-gap .toast-body > * + * { margin-top: 2px; }
+
+@media (max-height: 600px) {
+    .no-flex-gap .deck-container > * + * { margin-top: 6px; }
+    .no-flex-gap .stat-card > * + * { margin-top: 3px; }
+}

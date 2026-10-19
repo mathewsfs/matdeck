@@ -165,7 +165,13 @@ class FanControl extends EventEmitter {
         const r = await this.api('GET', '/devices');
         if (r.status === 401) throw new Error('token recusado pelo CoolerControl');
         if (r.status !== 200 || !r.json) throw new Error(`GET /devices -> HTTP ${r.status}`);
-        const exclude = new RegExp(this.settings().excludePattern || '(?!)', 'i');
+        let exclude;
+        try {
+            exclude = new RegExp(this.settings().excludePattern || '(?!)', 'i');
+        } catch (e) {
+            if (!this.warnedExclude) { this.warnedExclude = true; console.warn(`[Fans] excludePattern inválido (${e.message}); ignorando o filtro.`); }
+            exclude = /(?!)/;
+        }
         const channels = [];
         for (const dev of r.json.devices || []) {
             const chans = (dev.info && dev.info.channels) || {};

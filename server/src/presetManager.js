@@ -26,7 +26,12 @@ class PresetManager extends EventEmitter {
                     this.presets.set(key, this.normalize(key, data[key]));
                 }
             } catch (e) {
-                console.error('[PresetManager] Erro ao carregar presets.json:', e.message);
+                // Não regravar por cima: o arquivo ilegível fica guardado para recuperação manual
+                const backup = `${this.dataPath}.corrompido-${Date.now()}`;
+                try { fs.renameSync(this.dataPath, backup); } catch (e2) { /* segue sem backup */ }
+                console.error(`[PresetManager] presets.json ilegível (${e.message}); guardado em ${backup}. Iniciando sem presets salvos.`);
+                this.presets.clear();
+                return;
             }
         }
         this.save();
@@ -54,7 +59,9 @@ class PresetManager extends EventEmitter {
         const normalizedKeys = [];
         for (let i = 0; i < totalKeys; i++) {
             const existing = preset.keys.find(k => k && k.index === i);
-            normalizedKeys.push(existing ? { ...existing, index: i } : { index: i, title: '' });
+            const key = existing ? { ...existing, index: i } : { index: i, title: '' };
+            if (key.actionId != null && typeof key.actionId !== 'string') delete key.actionId;
+            normalizedKeys.push(key);
         }
         preset.keys = normalizedKeys;
         return preset;
@@ -99,7 +106,10 @@ class PresetManager extends EventEmitter {
 
     save() {
         try {
-            fs.writeFileSync(this.dataPath, JSON.stringify(this.getAll(), null, 2), 'utf8');
+            // Arquivo temporário + rename: queda no meio da gravação não deixa o presets.json pela metade
+            const tmp = `${this.dataPath}.tmp`;
+            fs.writeFileSync(tmp, JSON.stringify(this.getAll(), null, 2), 'utf8');
+            fs.renameSync(tmp, this.dataPath);
         } catch (e) {
             console.error('[PresetManager] Erro ao gravar presets.json:', e.message);
         }

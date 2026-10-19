@@ -79,7 +79,9 @@ class ConfigStore extends EventEmitter {
                 this.data = deepMerge(DEFAULTS, raw);
             }
         } catch (e) {
-            console.error('[Config] Erro ao ler config.json, usando padrões:', e.message);
+            const backup = `${this.filePath}.corrompido-${Date.now()}`;
+            try { fs.renameSync(this.filePath, backup); } catch (e2) { /* segue sem backup */ }
+            console.error(`[Config] config.json ilegível (${e.message}); guardado em ${backup}, usando padrões.`);
         }
 
         // Variáveis de ambiente têm precedência (útil para não gravar segredos em disco)
@@ -90,7 +92,9 @@ class ConfigStore extends EventEmitter {
     save() {
         try {
             fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-            fs.writeFileSync(this.filePath, JSON.stringify(this.data, null, 2), 'utf8');
+            const tmp = `${this.filePath}.tmp`;
+            fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), { encoding: 'utf8', mode: 0o600 });
+            fs.renameSync(tmp, this.filePath);
         } catch (e) {
             console.error('[Config] Erro ao gravar config.json:', e.message);
         }

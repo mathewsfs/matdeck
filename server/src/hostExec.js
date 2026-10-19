@@ -14,6 +14,8 @@ const isFlatpak = Boolean(process.env.FLATPAK_ID);
 // O cwd do sandbox (/app/...) não existe no host; sem isso o flatpak-spawn falha ao entrar nele
 // --watch-bus: se o flatpak-spawn morrer (timeout, SIGKILL no servidor), o comando no host morre junto
 const HOST_ARGS = ['--host', '--watch-bus', `--directory=${process.env.HOME || '/'}`];
+// Sem --watch-bus: para programas que devem continuar abertos depois que o servidor encerrar
+const HOST_ARGS_DETACHED = ['--host', `--directory=${process.env.HOME || '/'}`];
 
 /** Só variáveis que o chamador alterou de propósito são repassadas ao host. */
 function hostEnvArgs(env) {
@@ -52,6 +54,12 @@ function execSync(command, options = {}) {
 function spawn(file, args = [], options = {}) {
     if (!isFlatpak) return cp.spawn(file, args, options);
     return cp.spawn('flatpak-spawn', [...HOST_ARGS, ...hostEnvArgs(options.env), file, ...args], withoutEnv(options));
+}
+
+/** Como spawn, mas o processo no host sobrevive ao fim do servidor (apps abertos pelo deck). */
+function spawnDetached(file, args = [], options = {}) {
+    if (!isFlatpak) return cp.spawn(file, args, options);
+    return cp.spawn('flatpak-spawn', [...HOST_ARGS_DETACHED, ...hostEnvArgs(options.env), file, ...args], withoutEnv(options));
 }
 
 /** O env é passado por --env ao host; o flatpak-spawn em si roda com o env do sandbox. */
@@ -94,4 +102,4 @@ function shellQuote(s) {
     return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
 
-module.exports = { isFlatpak, HOST_ARGS, exec, execFile, execSync, spawn, which, firstWritableSocket };
+module.exports = { isFlatpak, HOST_ARGS, exec, execFile, execSync, spawn, spawnDetached, which, firstWritableSocket };

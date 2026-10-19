@@ -503,11 +503,6 @@ public class MainActivity extends Activity implements
                     notifyBanner.handle(msg);
                 }
 
-            } else if ("setBrightness".equals(event)) {
-                float brightness = (float) msg.optDouble("value", 1.0);
-                WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.screenBrightness = brightness;
-                getWindow().setAttributes(lp);
             }
         } catch (Exception e) {
             e.printStackTrace();

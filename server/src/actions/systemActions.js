@@ -1,4 +1,4 @@
-const { exec, execFile, spawn, which, firstWritableSocket } = require('../hostExec');
+const { exec, execFile, spawn, spawnDetached, which, firstWritableSocket } = require('../hostExec');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -163,6 +163,15 @@ class SystemActions {
         capsCacheAt = now;
         kdotoolCache = { value: capsCache.kdotool, at: now };
         return capsCache;
+    }
+
+    static capabilitiesStale() {
+        return !capsCache || (Date.now() - capsCacheAt) >= CAPS_TTL_MS;
+    }
+
+    /** Último resultado sem sondar de novo (sonda só se nunca rodou). */
+    static capabilitiesCached() {
+        return capsCache || SystemActions.capabilities();
     }
 
     /** Pasta onde o host (KWin) consegue ler arquivos escritos pelo servidor, mesmo dentro do Flatpak. */
@@ -556,7 +565,8 @@ class SystemActions {
      */
     static detach(file, args, label) {
         try {
-            const child = spawn(file, args, { detached: true, stdio: 'ignore' });
+            // spawnDetached: sem --watch-bus, senão o app fecha quando o servidor (Flatpak) encerra
+            const child = spawnDetached(file, args, { detached: true, stdio: 'ignore' });
             child.on('error', (e) => console.log(`[SystemActions] Falha ao abrir ${label}: ${e.message}`));
             child.unref();
             console.log(`[SystemActions] Lançado: ${label}`);

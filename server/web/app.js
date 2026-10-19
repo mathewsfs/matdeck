@@ -2,6 +2,20 @@
 const CLIENT_VERSION = '1.3.1'; // precisa bater com VERSION do servidor (src/index.js)
 const CLIENT_BUILD = (document.querySelector('meta[name="matdeck-build"]') || {}).content || ''; // impressão digital dos assets, injetada pelo servidor
 
+// Chrome 81 (tablet) ignora `gap` em flexbox: marca o <html> e o CSS usa margens no lugar (fim do style.css)
+(function detectFlexGap() {
+    try {
+        const box = document.createElement('div');
+        box.style.cssText = 'display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden';
+        box.appendChild(document.createElement('div'));
+        box.appendChild(document.createElement('div'));
+        document.documentElement.appendChild(box);
+        const supported = box.scrollHeight === 1;
+        document.documentElement.removeChild(box);
+        if (!supported) document.documentElement.classList.add('no-flex-gap');
+    } catch (e) { /* sem detecção, fica o gap */ }
+})();
+
 // ----------------------------------------------------
 // ESTADO GLOBAL
 // ----------------------------------------------------
@@ -352,12 +366,10 @@ function handleServerMessage(msg) {
             break;
         }
         case 'updateKey': {
+            // Sempre pelo campo index: perfis embutidos têm buracos (Spotify: 0, 2, 4, 7...), a posição no array não bate
             const idx = msg.keyIndex;
-            if (keysData[idx] && msg.key) {
-                Object.assign(keysData[idx], msg.key);
-                updateSingleKeyUI(idx);
-            } else if (msg.key && typeof idx === 'number') {
-                const existing = keysData.find(k => k.index === idx);
+            if (msg.key && typeof idx === 'number') {
+                const existing = keysData.find(k => k && k.index === idx);
                 if (existing) { Object.assign(existing, msg.key); updateSingleKeyUI(idx); }
             }
             break;

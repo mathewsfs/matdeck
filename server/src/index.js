@@ -222,9 +222,17 @@ class MatDeckServer {
     // Capacidades / status
     // ------------------------------------------------------------------
 
+    /** Serve o cache; a sondagem (vários execFileSync, lentos no Flatpak) roda fora da requisição quando o cache vence. */
     getCapabilities() {
         try {
-            return SystemActions.capabilities() || {};
+            if (SystemActions.capabilitiesStale() && !this.capsRefreshing) {
+                this.capsRefreshing = true;
+                setImmediate(() => {
+                    try { SystemActions.capabilities(); } catch (e) { console.warn('[MatDeck] Falha ao sondar capacidades do sistema:', e.message); }
+                    this.capsRefreshing = false;
+                });
+            }
+            return SystemActions.capabilitiesCached() || {};
         } catch (e) {
             console.warn('[MatDeck] Falha ao sondar capacidades do sistema:', e.message);
             return {};
@@ -1156,6 +1164,7 @@ class MatDeckServer {
 
     setupFanTelemetry() {
         this.fanControl.on('change', () => {
+            const app = this.fanSliderState();
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
             for (const key of currentDef.keys) {
@@ -1188,7 +1197,7 @@ class MatDeckServer {
     }
 
     setupAudioTelemetry() {
-        this.audioMixer.on('volumeChange', ({ appId }) => {
+        this.audioMixer.on('volumeChange', ({ appId, volume, muted }) => {
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
             for (const key of currentDef.keys) {

@@ -17,7 +17,6 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications # aviso "MatDeck no ar" do ícone da bandeja
   - --socket=wayland                         # só para o servidor saber que há sessão gráfica (bandeja)
   - --socket=fallback-x11
-  - --env=MATDECK_FLATPAK=1
 build-options:
   append-path: /usr/lib/sdk/node24/bin
 modules:

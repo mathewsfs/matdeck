@@ -147,6 +147,10 @@ class TeamSpeakProfile {
             }
         } catch (e) { /* usa defaults */ }
         const merged = Object.assign({}, DEFAULT_CONFIG, this.memConfig || {}, cfg);
+        // Identidade do app não é configurável: config.json antigo guardava appVersion/identifier de versões passadas
+        merged.identifier = DEFAULT_CONFIG.identifier;
+        merged.appName = DEFAULT_CONFIG.appName;
+        merged.appVersion = DEFAULT_CONFIG.appVersion;
         merged.buttons = Object.assign({}, DEFAULT_CONFIG.buttons, (this.memConfig && this.memConfig.buttons) || {}, cfg.buttons || {});
         if (merged.boundButtons && typeof merged.boundButtons === 'object') {
             this.boundButtons = Object.assign({}, merged.boundButtons, this.boundButtons);

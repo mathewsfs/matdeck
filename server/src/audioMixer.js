@@ -146,6 +146,8 @@ class AudioMixer extends EventEmitter {
                 return;
             }
             if (this.lastError) { this.lastError = ''; console.log('[AudioMixer] pactl voltou a responder'); }
+            const before = {};
+            for (const [id, app] of Object.entries(this.appStates)) before[id] = `${app.volume}|${app.muted}`;
             const [masterPart, inputsPart = ''] = out.split('@@INPUTS');
 
             const volMatch = masterPart.match(/(\d+)%/);
@@ -193,7 +195,16 @@ class AudioMixer extends EventEmitter {
                     this.appStates[key].sinkIds = [];
                 }
             }
+            // Mudou por fora (teclas de mídia, pavucontrol, o próprio deck via wpctl): avisa os clientes
+            for (const [id, app] of Object.entries(this.appStates)) {
+                if (before[id] !== `${app.volume}|${app.muted}`) this.emit('volumeChange', { appId: id, volume: app.volume, muted: app.muted });
+            }
         });
+    }
+
+    /** Só apps conhecidos (sem herdar do protótipo: appId vem do WebSocket). */
+    appState(appId) {
+        return Object.prototype.hasOwnProperty.call(this.appStates, appId) ? this.appStates[appId] : null;
     }
 
     // ------------------------------------------------------------------
@@ -207,8 +218,9 @@ class AudioMixer extends EventEmitter {
     }
 
     setVolume(appId, volumePercent) {
+        if (!Number.isFinite(volumePercent)) return;
         const vol = Math.max(0, Math.min(100, Math.round(volumePercent)));
-        const app = this.appStates[appId];
+        const app = this.appState(appId);
         if (!app) return;
 
         app.volume = vol;
@@ -234,7 +246,7 @@ class AudioMixer extends EventEmitter {
     }
 
     adjustVolume(appId, delta) {
-        const app = this.appStates[appId];
+        const app = this.appState(appId);
         if (!app) return;
         const step = parseInt(delta, 10);
         if (isNaN(step)) return;
@@ -242,7 +254,7 @@ class AudioMixer extends EventEmitter {
     }
 
     toggleMute(appId) {
-        const app = this.appStates[appId];
+        const app = this.appState(appId);
         if (!app) return;
 
         app.muted = !app.muted;
