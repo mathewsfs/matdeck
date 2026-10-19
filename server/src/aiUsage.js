@@ -14,7 +14,8 @@ const EventEmitter = require('events');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { exec, spawn } = require('./hostExec');
+const os = require('os');
+const { exec, execFile, spawn } = require('./hostExec');
 
 const CACHE_FILE = path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'ai-usage.json');
 
@@ -78,9 +79,10 @@ function httpJson(method, url, headers, body) {
     });
 }
 
+/** O caminho vai como argumento posicional: nada dele passa pelo shell (vem da configuração, editável pela rede). */
 function readHostFile(path) {
     return new Promise((resolve) => {
-        exec(`cat ${JSON.stringify(path)} 2>/dev/null`, { timeout: 4000, maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? null : String(stdout || '')));
+        execFile('sh', ['-c', 'cat "$1" 2>/dev/null', 'sh', path], { timeout: 4000, maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? null : String(stdout || '')));
     });
 }
 
@@ -94,9 +96,11 @@ function writeHostFile(path, content) {
     });
 }
 
+/** `~` e `$HOME` resolvidos aqui (o shell não expande dentro de "$1"); no Flatpak HOME é o mesmo do host. */
 function expandHome(p, fallback) {
     const s = String(p || '').trim() || fallback;
-    return s.replace(/^~(?=\/|$)/, '$HOME');
+    const home = process.env.HOME || os.homedir();
+    return s.replace(/^(~|\$HOME)(?=\/|$)/, home);
 }
 
 function clampPct(v) {

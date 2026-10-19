@@ -48,7 +48,11 @@ class MatDeckServer {
     constructor() {
         this.app = express();
         this.server = http.createServer(this.app);
-        this.wss = new WebSocketServer({ server: this.server, path: '/deck' });
+        this.wss = new WebSocketServer({
+            server: this.server,
+            path: '/deck',
+            verifyClient: (info) => MatDeckServer.originAllowed(info.origin, info.req.headers.host)
+        });
 
         this.currentProfileId = 'default';
         this.autoDetectEnabled = true;
@@ -227,6 +231,16 @@ class MatDeckServer {
         }
     }
 
+    /** Sem Origin (app nativo, curl, bandeja) ou Origin igual ao host da requisição. */
+    static originAllowed(origin, host) {
+        if (!origin) return true;
+        try {
+            return new URL(origin).host === String(host || '');
+        } catch (e) {
+            return false;
+        }
+    }
+
     getIntegrationsStatus() {
         const status = {};
         for (const [id, prof] of this.profiles.entries()) {
@@ -302,6 +316,15 @@ class MatDeckServer {
     // ------------------------------------------------------------------
 
     setupExpress() {
+        // Páginas de outros sites não podem disparar teclas, instalar plugins ou derrubar o servidor:
+        // requisições com Origin precisam vir da própria origem do servidor (sem Origin = app nativo, curl, bandeja)
+        this.app.use((req, res, next) => {
+            if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+            if (!MatDeckServer.originAllowed(req.headers.origin, req.headers.host)) {
+                return res.status(403).json({ success: false, error: 'Origem não permitida' });
+            }
+            next();
+        });
         this.app.use(express.json({ limit: '10mb' }));
 
         // Impressão digital dos arquivos do deck/gerenciador: entra na URL dos assets (?v=) e numa meta tag;
@@ -526,7 +549,7 @@ class MatDeckServer {
             this.reloadPlugins();
             res.json({ success: true, count: this.installedPlugins.length });
         });
-        this.app.post('/api/plugins/install', express.raw({ type: () => true, limit: '300mb' }), (req, res) => {
+        this.app.post('/api/plugins/install', express.raw({ type: ['application/octet-stream', 'application/zip', 'application/x-zip-compressed'], limit: '300mb' }), (req, res) => {
             try {
                 if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ success: false, error: 'Envie o arquivo .streamDeckPlugin no corpo da requisição' });
                 const meta = this.pluginLoader.installFromBuffer(req.body, decodeURIComponent(req.get('X-File-Name') || 'upload'));
