@@ -21,6 +21,7 @@ POST /api/shutdown, para funcionar igual com o servidor no host ou em Flatpak.
 import json
 import os
 import signal
+import subprocess
 import sys
 import threading
 import urllib.request
@@ -67,6 +68,30 @@ class StatusPoller(QObject):
             self.updated.emit(status)
         except RuntimeError:
             pass  # app já encerrou enquanto a requisição rodava
+
+
+def host_env():
+    """Ambiente para processos filhos (navegador): o bus real do host, não o proxy do sandbox.
+
+    No Flatpak o servidor conecta este ícone ao D-Bus pelo proxy do sandbox (para o Plasma associar
+    o ícone ao app), mas esse proxy só libera o que o manifesto permite; o navegador precisa dos
+    portais, então o xdg-open falhava em silêncio.
+    """
+    env = dict(os.environ)
+    bus = os.path.join(os.environ.get('XDG_RUNTIME_DIR') or f'/run/user/{os.getuid()}', 'bus')
+    if os.path.exists(bus):
+        env['DBUS_SESSION_BUS_ADDRESS'] = f'unix:path={bus}'
+    else:
+        env.pop('DBUS_SESSION_BUS_ADDRESS', None)
+    return env
+
+
+def open_url(url):
+    try:
+        subprocess.Popen(['xdg-open', url], env=host_env(), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except Exception:
+        webbrowser.open(url)
 
 
 def fetch_base_icon():
@@ -134,9 +159,9 @@ class Tray(QObject):
         self.menu.addSeparator()
 
         act_manage = QAction('Abrir gerenciador')
-        act_manage.triggered.connect(lambda: webbrowser.open(f'{BASE_URL}/manage'))
+        act_manage.triggered.connect(lambda: open_url(f'{BASE_URL}/manage'))
         act_deck = QAction('Abrir deck no navegador')
-        act_deck.triggered.connect(lambda: webbrowser.open(f'{BASE_URL}/'))
+        act_deck.triggered.connect(lambda: open_url(f'{BASE_URL}/'))
         self.menu.addAction(act_manage)
         self.menu.addAction(act_deck)
         self.menu.addSeparator()
@@ -175,7 +200,7 @@ class Tray(QObject):
 
     def on_activated(self, reason):
         if reason in (QSystemTrayIcon.Trigger, QSystemTrayIcon.DoubleClick):
-            webbrowser.open(f'{BASE_URL}/manage')
+            open_url(f'{BASE_URL}/manage')
 
     def apply_status(self, status):
         self.status = status
