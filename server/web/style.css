@@ -523,9 +523,9 @@ body.is-offline .deck-grid {
 }
 
 .key-stat-meter .key-stat-bar {
-    margin-top: 1px;
-    height: clamp(5px, 1.1vmin, 14px);
-    height: clamp(5px, 3.5cqmin, 14px);
+    margin-top: 3px;
+    height: clamp(8px, 2vmin, 22px);
+    height: clamp(8px, 6cqmin, 22px);
 }
 
 /* Bloco "tocando agora" (Spotify): capa ao fundo, texto sobre degradê, barra de progresso */
@@ -1732,7 +1732,7 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
     .deck-key.key-span .key-title { font-size: 2.19vmin; }
     .key-stat { padding: 1.56vmin 1.88vmin 1.56vmin; }
     .key-stat-meter-row { font-size: 2.5vmin; }
-    .key-stat-meter .key-stat-bar { height: 1.1vmin; }
+    .key-stat-meter .key-stat-bar { height: 4vmin; } /* iPad: o dobro do deck moderno */
     .key-stat.mode-media .key-stat-label { font-size: 1.7vmin; }
     .key-stat.mode-media .key-stat-headval { font-size: 1.7vmin; }
     .key-stat-media-title { font-size: 2.8vmin; }
