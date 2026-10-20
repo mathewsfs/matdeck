@@ -1009,7 +1009,7 @@ function coveredIndexes(p = editingProfile()) {
     return covered;
 }
 function isEmptyKey(k) { return !(k.title || k.actionId || k.icon || k.badge); }
-function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing')); }
+function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing' || k.actionId === 'player:panel')); }
 /** Escapa texto para innerHTML. */
 function escHtml(s) {
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1072,7 +1072,10 @@ function statInnerHtml(cfg, prefix) {
         return `<div class="${prefix}-cover">${cfg.statImage ? `<img src="${escHtml(cfg.statImage)}" alt="">` : ''}</div><div class="${prefix}-media-shade"></div>` +
             `<div class="${prefix}-head"><span class="${prefix}-label">${escHtml(cfg.statLabel || 'Spotify')}</span><span class="${prefix}-headval">${escHtml(cfg.statHead || '')}</span></div>` +
             `<div class="${prefix}-media-spacer"></div><div class="${prefix}-media-title">${escHtml(cfg.statBig || '')}</div><div class="${prefix}-media-artist">${escHtml(cfg.statSub || '')}</div>` +
-            `<div class="${prefix}-bar"><i style="width:${pct}%;background:${escHtml(color || '#1DB954')}"></i></div>`;
+            `<div class="${prefix}-bar"><i style="width:${pct}%;background:${escHtml(color || '#1DB954')}"></i></div>` +
+            (cfg.panel || cfg.actionId === 'player:panel'
+                ? `<div class="${prefix}-panel">` + ['seek_back', cfg.panelPlaying ? 'pause' : 'play', 'seek_fwd', cfg.panelMuted ? 'volume_mute' : 'volume'].map(n => `<span class="${prefix}-panel-btn${n === 'play' || n === 'pause' ? ' is-main' : ''}">${state.icons && state.icons[n] ? `<img src="${escHtml(state.icons[n])}" alt="">` : ''}</span>`).join('') + '</div>'
+                : '');
     }
     let html = `<div class="${prefix}-head"><span class="${prefix}-label">${escHtml(cfg.statLabel || cfg.title || '')}</span><span class="${prefix}-headval">${escHtml(cfg.statHead !== undefined ? cfg.statHead : (cfg.statSub || ''))}</span></div>`;
     if (mode === 'meters' && Array.isArray(cfg.statRows)) {
@@ -1124,7 +1127,7 @@ function buildKeyNode(k, { preview = false } = {}) {
     }
     if (isStatKey(k)) {
         el.classList.add('is-stat');
-        const media = k.statMode === 'media' || k.actionId === 'spotify:now_playing';
+        const media = k.statMode === 'media' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing';
         const ai = !k.statMode && k.actionId && k.actionId.startsWith('ai:');
         if (ai && k.statBig === undefined && k.statRows === undefined) {
             const lbl = k.actionId.startsWith('ai:codex') ? 'Codex' : 'Claude';
@@ -1141,7 +1144,7 @@ function buildKeyNode(k, { preview = false } = {}) {
         return el;
     }
     el.appendChild(h('span', { class: 'mkey-num', text: String(k.index + 1) }));
-    if (k.actionId === 'spotify:transport') {
+    if (k.actionId === 'spotify:transport' || k.actionId === 'player:transport') {
         el.classList.add('is-transport');
         const bar = h('div', { class: 'mkey-transport' });
         for (const name of ['prev', k.transportPlaying ? 'pause' : 'play', 'next']) {

@@ -652,6 +652,61 @@ body.is-offline .deck-grid {
     transition: width 0.9s linear, background-color var(--dur-base) var(--ease);
 }
 
+/* Painel de mídia: botões dentro do bloco (player:panel) */
+.key-media-panel {
+    pointer-events: auto;   /* .key-stat tem pointer-events: none; os botões precisam receber o toque */
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    margin-top: clamp(4px, 1.2vmin, 10px);
+    margin-top: clamp(4px, 3.5cqmin, 10px);
+}
+
+.key-media-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.08);
+    border: 0;
+    padding: 0;
+    width: 20%;
+    height: clamp(26px, 7vmin, 56px);
+    height: clamp(26px, 20cqmin, 56px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color var(--dur-base) var(--ease), transform var(--dur-base) var(--ease);
+}
+
+.key-media-btn img {
+    width: 60%;
+    height: 60%;
+    object-fit: contain;
+    display: block;
+}
+
+.key-media-play_pause {
+    width: 24%;
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.key-media-panel.is-playing .key-media-play_pause {
+    background: rgba(96, 165, 250, 0.35);
+}
+
+.key-media-panel.is-muted .key-media-mute {
+    background: rgba(220, 38, 38, 0.45);
+}
+
+.key-media-btn.is-pressed,
+.key-media-btn:active {
+    background: rgba(255, 255, 255, 0.28);
+    transform: scale(0.94);
+}
+
 .key-stat.has-text-color .key-stat-label,
 .key-stat.has-text-color .key-stat-headval,
 .key-stat.has-text-color .key-stat-media-artist,

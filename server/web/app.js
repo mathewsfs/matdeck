@@ -561,7 +561,7 @@ function isDarkColor(hex) {
 }
 
 function isStatKey(cfg) {
-    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing'));
+    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel'));
 }
 
 
@@ -691,6 +691,54 @@ function renderMediaContent(box, cfg) {
     bar.style.width = `${Math.max(0, Math.min(100, Number(cfg.statPercent) || 0))}%`;
     bar.style.background = cfg.statColor || '#1DB954';
     if (cfg.active) box.classList.add('is-playing'); else box.classList.remove('is-playing');
+    syncMediaPanel(box, cfg);
+}
+
+/**
+ * Botões do painel de mídia (player:panel) dentro do bloco: −10 s, play/pause, +10 s e mudo.
+ * Cada botão envia a ação direto ao servidor (evento "action"); o toque na tecla em si não faz nada.
+ */
+function syncMediaPanel(box, cfg) {
+    let bar = box.querySelector('.key-media-panel');
+    if (!cfg.panel) { if (bar) bar.remove(); box.classList.remove('has-panel'); return; }
+    box.classList.add('has-panel');
+    const ic = cfg.panelIcons || box._panelIcons || {};
+    if (cfg.panelIcons) box._panelIcons = cfg.panelIcons;
+    const prefix = String(cfg.actionId || 'player:').split(':')[0];
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.className = 'key-media-panel';
+        const labels = { seek_back: 'Voltar 10 s', play_pause: 'Play / Pause', seek_fwd: 'Avançar 10 s', mute: 'Mudo' };
+        for (const cmd of ['seek_back', 'play_pause', 'seek_fwd', 'mute']) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = `key-media-btn key-media-${cmd}`;
+            b.setAttribute('aria-label', labels[cmd]);
+            const img = document.createElement('img');
+            img.alt = '';
+            img.draggable = false;
+            b.appendChild(img);
+            const stop = (e) => { e.stopPropagation(); };
+            b.addEventListener('pointerdown', stop);
+            b.addEventListener('pointerup', stop);
+            b.addEventListener('touchstart', stop, { passive: true });
+            b.addEventListener('click', (e) => {
+                e.stopPropagation();
+                b.classList.add('is-pressed');
+                setTimeout(() => b.classList.remove('is-pressed'), 180);
+                wsSend({ event: 'action', actionId: `${prefix}:${cmd}` });
+            });
+            bar.appendChild(b);
+        }
+        box.appendChild(bar);
+    }
+    const setIcon = (cmd, src) => { const img = bar.querySelector(`.key-media-${cmd} img`); if (img && src && img.getAttribute('src') !== src) img.setAttribute('src', src); };
+    setIcon('seek_back', ic.seek_back);
+    setIcon('seek_fwd', ic.seek_fwd);
+    setIcon('play_pause', cfg.panelPlaying ? ic.pause : ic.play);
+    setIcon('mute', cfg.panelMuted ? ic.mute : ic.unmute);
+    bar.classList.toggle('is-playing', !!cfg.panelPlaying);
+    bar.classList.toggle('is-muted', !!cfg.panelMuted);
 }
 
 /**
@@ -808,8 +856,10 @@ function createKeyElement(cfg) {
  * Cada botão envia a ação direto ao servidor (evento "action"), sem passar pelo toque da tecla.
  */
 function syncTransport(el, cfg) {
-    const wants = !!cfg.transport || cfg.actionId === 'spotify:transport';
+    const wants = !!cfg.transport || cfg.actionId === 'spotify:transport' || cfg.actionId === 'player:transport';
     let bar = el.querySelector('.key-transport-bar');
+    // Prefixo da ação dos botões: spotify:* ou player:* (mídia do sistema)
+    if (cfg.actionId) el.dataset.transportPrefix = String(cfg.actionId).split(':')[0];
     el.classList.toggle('key-transport', wants);
     if (!wants) { if (bar) bar.remove(); return; }
     const ic = cfg.transportIcons || el._transportIcons || {};
@@ -835,7 +885,7 @@ function syncTransport(el, cfg) {
                 e.stopPropagation();
                 b.classList.add('is-pressed');
                 setTimeout(() => b.classList.remove('is-pressed'), 180);
-                wsSend({ event: 'action', actionId: `spotify:${cmd}` });
+                wsSend({ event: 'action', actionId: `${el.dataset.transportPrefix || 'spotify'}:${cmd}` });
             });
             bar.appendChild(b);
         }

@@ -88,6 +88,22 @@ const STATIC_GROUPS = [
         ]
     },
     {
+        id: 'player', label: 'Mídia do sistema (navegador, VLC…)', icon: 'music',
+        actions: [
+            { id: 'player:now_playing', label: 'Tocando agora', icon: 'music', kind: 'indicator', hint: 'O que o popup de mídia do navegador mostra: capa, título, canal e progresso; toque pausa/retoma', defaultSpan: { cols: 2, rows: 2 } },
+            { id: 'player:panel', label: 'Painel de mídia (tudo em um)', icon: 'music', kind: 'indicator', hint: 'Capa, título e progresso com botões −10 s, play/pause, +10 s e mudo no mesmo bloco (padrão: 2×2)', defaultSpan: { cols: 2, rows: 2 } },
+            { id: 'player:transport', label: 'Controles (◀ ▶ ▶▶)', icon: 'play', hint: 'Anterior, play/pause e próxima do player ativo (padrão: 2 colunas)', defaultSpan: { cols: 2, rows: 1 } },
+            { id: 'player:play_pause', label: 'Play / Pause', icon: 'play', hint: 'Do player que está tocando (YouTube, VLC, Spotify…)' },
+            { id: 'player:next', label: 'Próxima', icon: 'next', hint: 'Mostra n/d quando o player não tem fila' },
+            { id: 'player:prev', label: 'Anterior', icon: 'prev' },
+            { id: 'player:seek_fwd', label: 'Avançar 10 s', icon: 'seek_fwd' },
+            { id: 'player:seek_back', label: 'Voltar 10 s', icon: 'seek_back' },
+            { id: 'player:mute', label: 'Mudo do player', icon: 'volume_mute', hint: 'Muta o áudio do app que está tocando (navegador, Spotify…) no mixer do PC' },
+            { id: 'player:switch', label: 'Trocar player', icon: 'browser', hint: 'Com mais de um player aberto, passa o controle para o próximo' },
+            { id: 'player:raise', label: 'Focar player', icon: 'focus', hint: 'Traz a janela (ou a aba do vídeo) para frente' }
+        ]
+    },
+    {
         id: 'obs', label: 'OBS Studio', icon: 'obs',
         actions: [
             { id: 'obs:stream', label: 'Transmitir', icon: 'stream' },

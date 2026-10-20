@@ -22,6 +22,8 @@ const MeetProfile = require('./profiles/meet');
 const NextcloudProfile = require('./profiles/nextcloud');
 const SpotifyProfile = require('./profiles/spotify');
 const SpotifyMonitor = require('./spotify');
+const MediaPlayers = require('./mediaPlayers');
+const MediaPlayerActions = require('./actions/mediaPlayerActions');
 const FanControl = require('./fanControl');
 const AiUsage = require('./aiUsage');
 const DefaultProfile = require('./profiles/default');
@@ -64,6 +66,8 @@ class MatDeckServer {
         this.presetManager = new PresetManager(undefined, RESERVED_PROFILE_IDS);
         this.audioMixer = new AudioMixer();
         this.spotify = new SpotifyMonitor();
+        this.mediaPlayers = new MediaPlayers();
+        this.mediaActions = new MediaPlayerActions(this);
         this.fanControl = new FanControl(this.config);
         this.aiUsage = new AiUsage(this.config);
 
@@ -104,6 +108,7 @@ class MatDeckServer {
         this.setupHardwareTelemetry();
         this.setupAudioTelemetry();
         this.setupSpotifyTelemetry();
+        this.setupMediaTelemetry();
         this.setupFanTelemetry();
         this.setupAiTelemetry();
         this.setupUdpDiscovery();
@@ -381,6 +386,17 @@ class MatDeckServer {
             const info = await this.spotify.resolve(req.query.url || req.query.uri || '');
             if (!info) return res.status(400).json({ success: false, error: 'Link do Spotify não reconhecido. Use um link de open.spotify.com ou um URI spotify:...' });
             res.json({ success: true, ...info });
+        });
+
+        // Players de mídia do sistema (MPRIS: navegador, VLC...): estado e capa
+        this.app.get('/api/media/status', (req, res) => res.json(this.mediaPlayers.snapshot()));
+        this.app.get('/api/media/art/:id', (req, res) => {
+            const art = this.mediaPlayers.artOf(String(req.params.id || ''));
+            if (!art) return res.status(404).end();
+            res.set('Content-Type', art.mime);
+            res.set('X-Content-Type-Options', 'nosniff');
+            res.set('Cache-Control', 'public, max-age=86400, immutable');
+            res.send(art.buffer);
         });
 
         // Consumo de IA (Claude Code / Codex CLI)
@@ -737,7 +753,7 @@ class MatDeckServer {
             else if (typeof data.app === 'string') this.audioMixer.toggleMute(data.app);
         } else if (event === 'action') {
             // Botões internos de um bloco (ex.: controles do Spotify): ação direta, sem tecla
-            if (typeof data.actionId === 'string' && /^(spotify|media):/.test(data.actionId)) this.runAction(data.actionId);
+            if (typeof data.actionId === 'string' && /^(spotify|media|player):/.test(data.actionId)) this.runAction(data.actionId);
         } else if (event === 'keyDown' || event === 'keyUp') {
             const profileId = typeof data.profile === 'string' ? data.profile : this.currentProfileId;
             if (event === 'keyDown') {
@@ -756,10 +772,10 @@ class MatDeckServer {
     runAction(actionId) {
         const prefix = String(actionId).split(':')[0];
         const route = { spotify: 'spotify', media: 'default' }[prefix];
-        if (!route || !this.profiles.has(route)) return false;
+        const prof = prefix === 'player' ? this.mediaActions : (route && this.profiles.get(route));
+        if (!prof) return false;
         console.log(`[Deck] -> ${actionId}`);
         try {
-            const prof = this.profiles.get(route);
             const r = prof.handleAction(actionId, 'keyDown');
             if (r && typeof r.catch === 'function') r.catch(e => console.error(`[Deck] Erro em ${actionId}:`, e.message));
             prof.handleAction(actionId, 'keyUp');
@@ -818,6 +834,9 @@ class MatDeckServer {
             } else if (prefix === 'ai') {
                 // consumo de IA: toque força atualização
                 if (eventType === 'keyDown') this.aiUsage.refreshNow();
+            } else if (prefix === 'player') {
+                const result = this.mediaActions.handleAction(actionId, eventType);
+                if (result && typeof result.catch === 'function') result.catch(e => console.error(`[Deck] Erro em ${actionId}:`, e.message));
             } else if (prefix === 'stats') {
                 // teclas informativas: sem ação ao toque
             } else if (prefix === 'plugin') {
@@ -851,6 +870,7 @@ class MatDeckServer {
         }
         const changed = this.currentProfileId !== profileId;
         if (changed && this.spotifyLastSent) this.spotifyLastSent.clear(); // o cache vale só para a tela atual
+        if (changed && this.playerLastSent) this.playerLastSent.clear();
         this.currentProfileId = profileId;
         if (changed) console.log(`[MatDeck] Perfil alterado para: ${profileId}`);
         this.elgatoBridge.setVisibleProfile(profileId);
@@ -895,7 +915,7 @@ class MatDeckServer {
 
     /** Ações cujo título É o conteúdo (deve ser espelhado mesmo quando a tecla do hub tem título próprio). */
     static get TITLE_IS_CONTENT() {
-        return new Set(['ts:talking', 'ts:status', 'spotify:now_playing']);
+        return new Set(['ts:talking', 'ts:status', 'spotify:now_playing', 'player:now_playing', 'player:panel']);
     }
 
     /** Campos que descrevem o ESTADO visual de uma ação (espelhados entre perfis que usam a mesma ação). */
@@ -934,6 +954,11 @@ class MatDeckServer {
             }
             if (key.actionId.startsWith('spotify:')) {
                 const st = this.spotifyStateFor(key, def.id);
+                if (st) { touched = true; return { ...key, ...st }; }
+                return key;
+            }
+            if (key.actionId.startsWith('player:')) {
+                const st = MatDeckServer.mergeLiveState(this.mediaActions.stateFor(key.actionId), key, true);
                 if (st) { touched = true; return { ...key, ...st }; }
                 return key;
             }
@@ -1135,12 +1160,45 @@ class MatDeckServer {
      */
     spotifyStateFor(key, profileId) {
         const prof = this.profiles.get('spotify');
-        const st = prof && prof.stateFor(key.actionId);
+        return MatDeckServer.mergeLiveState(prof && prof.stateFor(key.actionId), key, profileId !== 'spotify');
+    }
+
+    /**
+     * Mescla um estado vivo sobre a tecla: campos indefinidos voltam ao valor próprio da tecla (ou null,
+     * para limpar); com `keepUserTitle`, o título dado pelo usuário é preservado, exceto nas ações
+     * cujo título é o conteúdo (TITLE_IS_CONTENT).
+     */
+    static mergeLiveState(st, key, keepUserTitle) {
         if (!st) return null;
         const out = {};
         for (const f of Object.keys(st)) out[f] = st[f] === undefined ? (key[f] !== undefined ? key[f] : null) : st[f];
-        if (profileId !== 'spotify' && key.title && !MatDeckServer.TITLE_IS_CONTENT.has(key.actionId)) delete out.title;
+        if (keepUserTitle && key.title && !MatDeckServer.TITLE_IS_CONTENT.has(key.actionId)) delete out.title;
         return out;
+    }
+
+    /** Teclas `player:*` da tela atual acompanham o player de mídia ativo (só o que mudou é enviado). */
+    setupMediaTelemetry() {
+        this.playerLastSent = new Map();
+        this.mediaPlayers.on('change', () => this.pushPlayerKeys());
+        this.mediaPlayers.start();
+    }
+
+    /** Envia às telas o estado atual das teclas `player:*` da tela ativa (só o que mudou). */
+    pushPlayerKeys() {
+        const currentDef = this.getProfileDefinition(this.currentProfileId);
+        if (!currentDef || !currentDef.keys) return;
+        for (const key of currentDef.keys) {
+            if (!key.actionId || !key.actionId.startsWith('player:')) continue;
+            const st = MatDeckServer.mergeLiveState(this.mediaActions.stateFor(key.actionId), key, true);
+            if (!st) continue;
+            delete st.transportIcons;
+            delete st.panelIcons;
+            const sig = JSON.stringify(st);
+            const cacheKey = `${this.currentProfileId}|${key.index}`;
+            if (this.playerLastSent.get(cacheKey) === sig) continue;
+            this.playerLastSent.set(cacheKey, sig);
+            this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: st });
+        }
     }
 
     setupSpotifyTelemetry() {
@@ -1210,6 +1268,7 @@ class MatDeckServer {
 
     setupAudioTelemetry() {
         this.audioMixer.on('volumeChange', ({ appId, volume, muted }) => {
+            if (appId === this.mediaActions.audioAppFor(this.mediaPlayers.active)) this.pushPlayerKeys();   // mudo do painel/tecla do player
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
             for (const key of currentDef.keys) {
@@ -1326,6 +1385,7 @@ class MatDeckServer {
             this.hardwareMonitor.stop();
             this.audioMixer.stop();
             this.spotify.stop();
+            this.mediaPlayers.stop();
             this.fanControl.stop();
             this.aiUsage.stop();
             this.windowDetector.stop();

@@ -256,7 +256,8 @@ class SpotifyMonitor extends EventEmitter {
 
     call(method, sig, ...args) {
         return new Promise((resolve) => {
-            const a = ['--user', 'call', BUS, OBJ, IFACE_PLAYER, method];
+            // `--`: um argumento negativo (Seek para trás) não pode ser lido pelo busctl como opção
+            const a = ['--user', 'call', '--', BUS, OBJ, IFACE_PLAYER, method];
             if (sig) a.push(sig, ...args.map(String));
             execFile('busctl', a, EXEC_OPTS, (err, stdout, stderr) => {
                 if (err) {
@@ -357,5 +358,6 @@ class SpotifyMonitor extends EventEmitter {
 }
 
 SpotifyMonitor.normalizeUri = normalizeUri;
+SpotifyMonitor.httpsGet = httpsGet;
 
 module.exports = SpotifyMonitor;
