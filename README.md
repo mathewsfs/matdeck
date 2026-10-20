@@ -149,6 +149,7 @@ Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troc
 - **Mais opções**: perfis completos de OBS, Discord, TeamSpeak e Meet, Auto-Perfil, mídia, mixer, apps (navegador, calculadora, terminal), bloquear PC e **Voltar**.
 - As teclas do hub mostram o estado real da integração dona da ação (por exemplo, o mic do TeamSpeak fica vermelho no hub quando mutado). Qualquer preset personalizado pode misturar ações de qualquer integração e também recebe esse estado.
 - Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troca para o perfil completo daquele app; desligue o AUTO (em "Mais") se preferir ficar no hub.
+- **Navegadores antigos** (iPad 2 com iOS 9 / Safari 9, por exemplo): o `index.html` testa a sintaxe do navegador e carrega `app.legacy.js`, uma versão ES5 do deck com polyfills (fetch, toque no lugar de Pointer Events, teclas posicionadas sem CSS Grid). Se nem essa rodar, aparece um aviso em vez da tela preta. No iPad a única tela cheia é abrir o deck pela Tela de Início: no Safari, Compartilhar → "Adicionar à Tela de Início" (o Chrome do iOS não oferece isso). Para conferir esse modo no PC, abra `http://IP:8888/?compat=1`. O arquivo é gerado a partir do `app.js` com `cd scripts/legacy-build && npm install && npm run build` (o `build-flatpak.sh` faz isso sozinho quando o Babel está instalado); sempre regenere depois de mudar o `app.js`.
 
 ## Gerenciador (estilo Elgato)
 
@@ -223,6 +224,7 @@ apk-matdeck/
 │   ├── build-flatpak.sh             # gera e instala o Flatpak do servidor
 │   ├── install-desktop.sh           # atalho no menu do KDE
 │   ├── matdeck-launcher.sh          # sobe o servidor e abre o painel
+│   ├── legacy-build/                # Babel: gera server/web/app.legacy.js (ES5) para navegadores antigos
 │   └── matdeck-tray.py              # ícone na bandeja (PySide6), iniciado pelo servidor
 └── start-server.sh
 ```
@@ -248,4 +250,5 @@ Os ícones das teclas vêm de [Lucide](https://lucide.dev) (ISC) e [Simple Icons
 - Plugins Elgato (`.streamDeckPlugin`) são apenas listados; a execução ainda não está ligada às teclas.
 - Discord e Meet dependem de foco de janela + atalho: se o atalho for alterado no app, mude também no MatDeck.
 - O navegador do Android 4.4 não roda o painel web moderno (use o APK).
+- No iPad 2 (iOS 9) o deck roda pelo `app.legacy.js`, mas sem tela cheia e sem "manter a tela acesa": o Safari 9 não expõe essas APIs.
 - Windows e macOS têm só o caminho básico de teclas; o foco do projeto é Linux.

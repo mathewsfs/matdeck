@@ -1,0 +1,13 @@
+{
+  "name": "matdeck-legacy-build",
+  "private": true,
+  "description": "Gera server/web/app.legacy.js (ES5) para navegadores antigos como o Safari 9 do iPad 2. Só em desenvolvimento; nada daqui vai para o Flatpak.",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "regenerator-runtime": "^0.14.1"
+  }
+}

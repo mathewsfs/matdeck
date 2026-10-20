@@ -547,6 +547,11 @@ body.is-offline .deck-grid {
     z-index: 0;
 }
 
+.key-stat-cover {
+    background-size: cover;      /* Safari 9: sem object-fit a capa vai como background (app.js) */
+    background-position: center;
+}
+
 .key-stat-cover img {
     display: block;
     width: 100%;
@@ -1207,6 +1212,7 @@ body:not(.corner-hidden) .deck-key[data-index="0"] {
 }
 
 body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
+    padding-top: 44px; /* --corner-h + 10px (Safari 9.1) */
     padding-top: calc(var(--corner-h) + 10px);
 }
 
@@ -1282,6 +1288,8 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
 }
 
 .sheet {
+    width: 100%;
+    max-width: 320px;
     width: min(320px, 100%);
     max-height: calc(100% - 8px);
     overflow-y: auto;
@@ -1486,6 +1494,8 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
     align-items: center;
     gap: var(--space-2);
     z-index: 1200;
+    width: calc(100vw - 32px);
+    max-width: 440px;
     width: min(440px, calc(100vw - 32px));
     pointer-events: none;
 }
@@ -1662,4 +1672,82 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
 @media (max-height: 600px) {
     .no-flex-gap .deck-container > * + * { margin-top: 6px; }
     .no-flex-gap .stat-card > * + * { margin-top: 3px; }
+}
+
+/* iOS como app da Tela de Início: 20px livres para a barra de status translúcida */
+.ios-standalone .deck-container {
+    padding-top: 28px; /* --space-2 + 20px; sem var() em calc(): o Safari 9.1 não resolve */
+}
+
+/* ==========================================================================
+   Sem CSS Grid (Safari 9 do iPad 2; iOS 9.3). O app.js detecta e põe html.no-grid; as teclas
+   recebem left/top/width/height por calc() em placeKey(). O HUD e os botões do canto
+   voltam a flexbox. Os font-size/height com clamp() têm, logo acima de cada um, uma linha
+   só com o valor preferido (vmin), que é o que vale nesses navegadores.
+   ========================================================================== */
+.no-grid .deck-grid {
+    display: block;
+    position: relative;
+}
+.no-grid .deck-grid > .deck-key {
+    position: absolute;
+    margin: 0;
+}
+.no-grid .hardware-hud {
+    display: -webkit-flex;
+    display: flex;
+    -webkit-flex-wrap: wrap;
+    flex-wrap: wrap;
+    margin-right: -8px;
+}
+.no-grid .hardware-hud > .stat-card {
+    -webkit-flex: 1 1 calc(25% - 8px);
+    flex: 1 1 calc(25% - 8px);
+    margin: 0 8px 0 0;
+}
+/* O Safari 9 aceita space-evenly ao ler, mas não o aplica (tudo vai para o início) */
+.no-grid .key-stat-meters,
+.no-grid .key-transport-bar,
+.no-grid .key-media-panel {
+    -webkit-justify-content: space-around;
+    justify-content: space-around;
+}
+.no-grid .conn-dot,
+.no-grid .corner-btn {
+    display: -webkit-flex;
+    display: flex;
+    -webkit-align-items: center;
+    align-items: center;
+    -webkit-justify-content: center;
+    justify-content: center;
+}
+
+/* ==========================================================================
+   Sem clamp() (Safari 9 do iPad 2). As regras modernas usam clamp() com var() dentro: o
+   Safari 9.1 aceita a declaração ao ler (por causa do var) e só falha no cálculo, o que
+   anula qualquer fallback escrito antes dela. Por isso os fallbacks ficam aqui, num bloco
+   que só navegadores sem clamp() aplicam. Valores em vmin para o tamanho médio de fonte.
+   ========================================================================== */
+@supports not (font-size: clamp(1px, 1vmin, 2px)) {
+    .deck-key.key-span .key-title { font-size: 2.19vmin; }
+    .key-stat { padding: 1.56vmin 1.88vmin 1.56vmin; }
+    .key-stat-meter-row { font-size: 2.5vmin; }
+    .key-stat-meter .key-stat-bar { height: 1.1vmin; }
+    .key-stat.mode-media .key-stat-label { font-size: 1.7vmin; }
+    .key-stat.mode-media .key-stat-headval { font-size: 1.7vmin; }
+    .key-stat-media-title { font-size: 2.8vmin; }
+    .key-stat-media-artist { font-size: 2.1vmin; }
+    .key-stat-media-time { font-size: 1.6vmin; }
+    .key-stat.mode-media .key-stat-bar { height: 0.9vmin; }
+    .key-media-panel { margin-top: 1.2vmin; }
+    .key-media-btn { height: 7vmin; }
+    .key-stat-label { font-size: 2.66vmin; }
+    .key-stat-headval { font-size: 2.66vmin; }
+    .key-stat-big { font-size: 7.19vmin; }
+    .key-stat-sub { font-size: 2.34vmin; }
+    .key-stat-row { font-size: 2.81vmin; }
+    .key-stat-bar { height: 1.56vmin; }
+    .key-auto-btn { font-size: 9px; }
+    .key-badge { font-size: 10px; }
+    .key-title { font-size: 12px; }
 }

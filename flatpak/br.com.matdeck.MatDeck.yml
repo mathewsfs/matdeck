@@ -48,6 +48,7 @@ modules:
           - build-flatpak.sh
           - install-desktop.sh
           - matdeck-launcher.sh
+          - legacy-build        # Babel (só desenvolvimento); o app.legacy.js gerado já está em server/web
       - type: file
         path: matdeck.sh
       - type: file

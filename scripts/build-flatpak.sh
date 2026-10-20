@@ -16,6 +16,15 @@ if [ ! -d "${BASE_DIR}/server/node_modules" ]; then
     (cd "${BASE_DIR}/server" && npm install --no-audit --no-fund --omit=dev)
 fi
 
+# Deck para navegadores antigos (Safari 9 do iPad 2): regenera se o Babel estiver instalado;
+# senão só avisa quando o arquivo gerado ficou para trás do app.js
+LEGACY_DIR="${BASE_DIR}/scripts/legacy-build"
+if [ -d "${LEGACY_DIR}/node_modules" ]; then
+    (cd "${LEGACY_DIR}" && npm run --silent build)
+elif [ "${BASE_DIR}/server/web/app.js" -nt "${BASE_DIR}/server/web/app.legacy.js" ]; then
+    echo "[MatDeck] Aviso: server/web/app.legacy.js está mais antigo que app.js. Gere com: cd scripts/legacy-build && npm install && npm run build"
+fi
+
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 flatpak install --user -y --noninteractive flathub \
     "org.freedesktop.Platform//${RUNTIME_VERSION}" \

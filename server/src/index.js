@@ -53,7 +53,11 @@ class MatDeckServer {
         this.wss = new WebSocketServer({
             server: this.server,
             path: '/deck',
-            verifyClient: (info) => MatDeckServer.originAllowed(info.origin, info.req.headers.host)
+            verifyClient: (info) => {
+                const ok = MatDeckServer.originAllowed(info.origin, info.req.headers.host);
+                if (!ok) console.warn(`[WebSocket] Conexão recusada: origem ${info.origin} ≠ host ${info.req.headers.host} | ${(info.req.headers['user-agent'] || '?').slice(0, 120)}`);
+                return ok;
+            }
         });
 
         this.currentProfileId = 'default';
@@ -635,6 +639,13 @@ class MatDeckServer {
             setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100);
         });
 
+        // Diagnóstico remoto: POST pede o layout a todos os decks; GET devolve o último de cada IP
+        this.app.post('/api/debug/layout', (req, res) => {
+            this.broadcast({ event: 'layoutDump' });
+            res.json({ success: true, clients: this.clients.size });
+        });
+        this.app.get('/api/debug/layout', (req, res) => res.json(this.layoutDumps || {}));
+
         this.app.get('/api/status', (req, res) => {
             res.json({
                 version: VERSION,
@@ -672,6 +683,7 @@ class MatDeckServer {
 
             this.clients.add(ws);
             const clientIp = req.socket.remoteAddress;
+            ws._clientIp = clientIp; // usado pelo diagnóstico remoto de layout
             console.log(`[WebSocket] Cliente conectado (${clientIp}). Total: ${this.clients.size} | ${(req.headers['user-agent'] || '?').slice(0, 160)}`);
 
             this.send(ws, { event: 'profileList', profiles: this.getProfileList(), current: this.currentProfileId });
@@ -732,6 +744,15 @@ class MatDeckServer {
     handleClientMessage(ws, data) {
         if (!data || typeof data !== 'object') return;
         const event = data.event;
+
+        if (event === 'layoutDump') {
+            // Diagnóstico remoto de layout (navegadores sem console, como o iPad): guardado por IP, GET /api/debug/layout
+            const ip = (ws._clientIp || '?').replace(/^::ffff:/, '');
+            this.layoutDumps = this.layoutDumps || {};
+            this.layoutDumps[ip] = { at: new Date().toISOString(), dump: data.dump };
+            console.log(`[Deck] Diagnóstico de layout recebido de ${ip} (${JSON.stringify(data.dump || {}).length} bytes)`);
+            return;
+        }
 
         if (event === 'clientHello') {
             console.log(`[Deck] Dispositivo: ${data.device} (${data.version}) [${data.width}x${data.height}]`);

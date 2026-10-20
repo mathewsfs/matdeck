@@ -1,4 +1,5 @@
 'use strict';
+window.MATDECK_APP_LOADED = true; // o carregador do index.html mostra "navegador antigo" se isto não rodar
 const CLIENT_VERSION = '1.3.1'; // precisa bater com VERSION do servidor (src/index.js)
 const CLIENT_BUILD = (document.querySelector('meta[name="matdeck-build"]') || {}).content || ''; // impressão digital dos assets, injetada pelo servidor
 
@@ -15,6 +16,19 @@ const CLIENT_BUILD = (document.querySelector('meta[name="matdeck-build"]') || {}
         if (!supported) document.documentElement.classList.add('no-flex-gap');
     } catch (e) { /* sem detecção, fica o gap */ }
 })();
+
+// Safari 9 (iPad 2) não tem CSS Grid: as teclas são posicionadas por calc() em html.no-grid.
+// ?compat=1 força o modo (e o app.legacy.js) para conferir no PC.
+const NO_GRID = (function detectGrid() {
+    try {
+        if (/[?&]compat=1\b/.test(location.search)) return true;
+        return !(window.CSS && typeof CSS.supports === 'function' && CSS.supports('display', 'grid'));
+    } catch (e) { return false; }
+})();
+if (NO_GRID) document.documentElement.classList.add('no-grid');
+const NO_OBJECT_FIT = !('objectFit' in document.documentElement.style); // Safari 9: <img> esticaria a capa
+// iOS aberto pela Tela de Início: a barra de status fica por cima da página (status-bar-style translúcido)
+if (navigator.standalone === true) document.documentElement.classList.add('ios-standalone');
 
 // ----------------------------------------------------
 // ESTADO GLOBAL
@@ -175,7 +189,7 @@ function toast(message, opts = {}) {
     close.type = 'button';
     close.className = 'toast-close';
     close.setAttribute('aria-label', 'Fechar aviso');
-    close.innerHTML = '<svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>';
+    close.innerHTML = '<svg class="ico" aria-hidden="true"><use xlink:href="#i-close" href="#i-close"/></svg>';
 
     el.appendChild(body);
     el.appendChild(close);
@@ -329,6 +343,7 @@ function initWebSocket() {
             handleServerMessage(JSON.parse(event.data));
         } catch (e) {
             console.error('Erro ao ler WebSocket:', e);
+            toast('Erro ao processar mensagem do servidor: ' + ((e && e.message) || e), { type: 'error', duration: 8000 });
         }
     };
 
@@ -341,6 +356,20 @@ function initWebSocket() {
     ws.onerror = () => {
         try { ws.close(); } catch (e) { /* ignore */ }
     };
+}
+
+/** Diagnóstico remoto (POST /api/debug/layout): geometria e estilos das teclas, para navegadores sem console (iPad). */
+function layoutDump() {
+    const props = ['display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'flex', 'width', 'height', 'fontSize', 'padding'];
+    const node = (el, depth) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        const out = { c: (el.getAttribute('class') || el.tagName).slice(0, 70), r: [r.left, r.top, r.width, r.height].map(Math.round) };
+        for (const p of props) out[p] = cs[p];
+        if (depth > 0 && el.children.length) out.ch = Array.from(el.children).slice(0, 10).map(c => node(c, depth - 1));
+        return out;
+    };
+    return { ua: navigator.userAgent, w: window.innerWidth, h: window.innerHeight, html: document.documentElement.className, keys: Array.from(gridEl.children).map(k => node(k, 3)) };
 }
 
 function handleServerMessage(msg) {
@@ -376,6 +405,9 @@ function handleServerMessage(msg) {
         }
         case 'hardwareStats':
             updateHardwareHud(msg.stats);
+            break;
+        case 'layoutDump':
+            wsSend({ event: 'layoutDump', dump: layoutDump() });
             break;
         case 'reload':
             // Servidor atualizado: recarrega para pegar o app.js/style.css novos (uma vez por versão)
@@ -507,6 +539,31 @@ function coveredIndexes() {
     return covered;
 }
 
+/** Espaçamento da grade (--space-2) em px, lido do CSS para seguir as media queries. */
+function gridGapPx() {
+    try {
+        const v = parseFloat(getComputedStyle(gridEl).getPropertyValue('--space-2'));
+        return Number.isFinite(v) ? v : 8;
+    } catch (e) { return 8; }
+}
+
+/** Posiciona a tecla na grade: por grid-column/row ou, sem CSS Grid, por calc() absoluto. */
+function placeKey(el, index, sp, cols, rows, gap) {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    if (!NO_GRID) {
+        el.style.gridColumn = `${col + 1} / span ${sp.cols}`;
+        el.style.gridRow = `${row + 1} / span ${sp.rows}`;
+        return;
+    }
+    const cw = `(100% - ${(cols - 1) * gap}px) / ${cols}`; // largura de uma célula
+    const rh = `(100% - ${(rows - 1) * gap}px) / ${rows}`;
+    el.style.left = `calc(${cw} * ${col} + ${col * gap}px)`;
+    el.style.top = `calc(${rh} * ${row} + ${row * gap}px)`;
+    el.style.width = `calc(${cw} * ${sp.cols} + ${(sp.cols - 1) * gap}px)`;
+    el.style.height = `calc(${rh} * ${sp.rows} + ${(sp.rows - 1) * gap}px)`;
+}
+
 function renderGrid(rows = 3, cols = 5) {
     cancelAllDrags();
     gridEl.innerHTML = '';
@@ -514,14 +571,14 @@ function renderGrid(rows = 3, cols = 5) {
     gridCols = cols;
     const total = rows * cols;
     const covered = coveredIndexes();
+    const gap = gridGapPx();
     for (let i = 0; i < total; i++) {
         if (covered.has(i)) continue;
         const keyConfig = keysData.find(k => k.index === i) || { index: i, title: '' };
         const el = createKeyElement(keyConfig);
         // Posição explícita: teclas maiores ocupam várias células sem deslocar as demais
         const sp = spanOf(keyConfig);
-        el.style.gridColumn = `${(i % cols) + 1} / span ${sp.cols}`;
-        el.style.gridRow = `${Math.floor(i / cols) + 1} / span ${sp.rows}`;
+        placeKey(el, i, sp, cols, rows, gap);
         if (sp.cols > 1 || sp.rows > 1) el.classList.add('key-span');
         gridEl.appendChild(el);
     }
@@ -532,10 +589,12 @@ function renderSkeletonGrid(rows = 3, cols = 5) {
     gridEl.innerHTML = '';
     gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     gridEl.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    const gap = gridGapPx();
     for (let i = 0; i < rows * cols; i++) {
         const el = document.createElement('div');
         el.className = 'deck-key deck-key-skeleton';
         el.setAttribute('aria-hidden', 'true');
+        placeKey(el, i, { cols: 1, rows: 1 }, cols, rows, gap);
         gridEl.appendChild(el);
     }
 }
@@ -679,12 +738,16 @@ function renderMediaContent(box, cfg) {
     setText('.key-stat-media-len', cfg.statTotal);
     const cover = box.querySelector('.key-stat-cover');
     let img = cover.querySelector('img');
-    if (cfg.statImage) {
+    if (cfg.statImage && NO_OBJECT_FIT) {
+        if (cover.dataset.src !== cfg.statImage) { cover.style.backgroundImage = `url("${cfg.statImage}")`; cover.dataset.src = cfg.statImage; }
+        box.classList.add('has-cover');
+    } else if (cfg.statImage) {
         if (!img) { img = document.createElement('img'); img.alt = ''; img.draggable = false; cover.appendChild(img); }
         if (img.getAttribute('src') !== cfg.statImage) img.setAttribute('src', cfg.statImage);
         box.classList.add('has-cover');
     } else {
         if (img) img.remove();
+        if (cover.dataset.src) { cover.style.backgroundImage = ''; delete cover.dataset.src; }
         box.classList.remove('has-cover');
     }
     const bar = box.querySelector('.key-stat-bar i');
@@ -1283,7 +1346,7 @@ function closeSheet() {
     document.body.classList.remove('sheet-open');
     if (sheetFocusReturn && typeof sheetFocusReturn.focus === 'function') sheetFocusReturn.focus();
     sheetFocusReturn = null;
-    if (document.fullscreenElement) showCorner(true); // volta a esconder o canto depois de fechar as opções
+    if (fsElement()) showCorner(true); // volta a esconder o canto depois de fechar as opções
 }
 
 connDot.addEventListener('click', () => {
@@ -1456,7 +1519,7 @@ let cornerHideTimer = null;
 function showCorner(autoHide) {
     document.body.classList.remove('corner-hidden');
     if (cornerHideTimer) { clearTimeout(cornerHideTimer); cornerHideTimer = null; }
-    if (autoHide) cornerHideTimer = setTimeout(() => { if (document.fullscreenElement && !sheetOpen()) document.body.classList.add('corner-hidden'); }, CORNER_HIDE_MS);
+    if (autoHide) cornerHideTimer = setTimeout(() => { if (fsElement() && !sheetOpen()) document.body.classList.add('corner-hidden'); }, CORNER_HIDE_MS);
 }
 
 function sheetOpen() {
@@ -1465,8 +1528,33 @@ function sheetOpen() {
 
 $('corner-hotzone').addEventListener('pointerdown', (e) => { e.preventDefault(); showCorner(true); });
 
+// Tela cheia com e sem prefixo: iPadOS 12+ só tem webkitRequestFullscreen (sem promise); iOS 9 não tem nada
+function fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function fsSupported() {
+    const el = document.documentElement;
+    return typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function';
+}
+
+function requestFs() {
+    const el = document.documentElement;
+    if (typeof el.requestFullscreen === 'function') return el.requestFullscreen();
+    try { el.webkitRequestFullscreen(); return Promise.resolve(); } catch (e) { return Promise.reject(e); }
+}
+
+function exitFs() {
+    if (typeof document.exitFullscreen === 'function') return document.exitFullscreen().catch(() => {});
+    try { if (typeof document.webkitExitFullscreen === 'function') document.webkitExitFullscreen(); } catch (e) { /* ignore */ }
+    return Promise.resolve();
+}
+
 function refreshFullscreenLabel() {
-    const on = !!document.fullscreenElement;
+    const supported = fsSupported();
+    btnFullscreen.hidden = !supported;        // sem API (iOS 9) o botão some em vez de não fazer nada
+    btnFullscreenCorner.hidden = !supported;
+    const on = !!fsElement();
     btnFullscreenLabel.textContent = on ? 'Sair da tela cheia' : 'Tela cheia';
     btnFullscreenCorner.setAttribute('aria-pressed', on ? 'true' : 'false');
     btnFullscreenCorner.setAttribute('aria-label', on ? 'Sair da tela cheia' : 'Tela cheia');
@@ -1488,13 +1576,17 @@ function unlockOrientation() {
 }
 
 function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen()
+    if (!fsSupported()) {
+        toast('Tela cheia não disponível neste navegador.', { type: 'warning' });
+        return;
+    }
+    if (!fsElement()) {
+        requestFs()
             .then(lockLandscape)
             .catch(() => toast('Tela cheia não disponível neste navegador.', { type: 'warning' }));
     } else {
         unlockOrientation();
-        document.exitFullscreen().catch(() => {});
+        exitFs();
     }
 }
 
@@ -1505,6 +1597,7 @@ if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches
 btnFullscreen.addEventListener('click', toggleFullscreen);
 btnFullscreenCorner.addEventListener('click', toggleFullscreen);
 document.addEventListener('fullscreenchange', refreshFullscreenLabel);
+document.addEventListener('webkitfullscreenchange', refreshFullscreenLabel);
 
 // ----------------------------------------------------
 // POLL DE STATUS (endereço do servidor + HUD de reserva)
@@ -1545,3 +1638,4 @@ window.addEventListener('orientationchange', function () { setTimeout(syncViewpo
 initWebSocket();
 pollStatus();
 setInterval(pollStatus, 5000);
+window.MATDECK_APP_BOOTED = true; // o carregador do index.html acusa se a inicialização parou antes daqui

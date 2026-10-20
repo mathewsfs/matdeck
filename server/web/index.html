@@ -8,6 +8,11 @@
     <link rel="icon" href="icon-192.png">
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="mobile-web-app-capable" content="yes">
+    <!-- iOS: "Adicionar à Tela de Início" no Safari abre o deck sem barra de endereço (o único modo de tela cheia no iPad) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MatDeck">
+    <link rel="apple-touch-icon" href="icon-192.png">
     <meta name="theme-color" content="#0B0F17">
     <script>
         // Aplica tema e tamanho de fonte salvos antes do primeiro paint (evita flash)
@@ -100,8 +105,8 @@
             <span class="conn-dot-inner" aria-hidden="true"></span>
         </button>
         <button type="button" class="corner-btn" id="btn-fullscreen-corner" aria-label="Tela cheia" aria-pressed="false">
-            <svg class="ico ico-expand" aria-hidden="true"><use href="#i-expand"/></svg>
-            <svg class="ico ico-compress" aria-hidden="true"><use href="#i-compress"/></svg>
+            <svg class="ico ico-expand" aria-hidden="true"><use xlink:href="#i-expand" href="#i-expand"/></svg>
+            <svg class="ico ico-compress" aria-hidden="true"><use xlink:href="#i-compress" href="#i-compress"/></svg>
         </button>
     </div>
     <div class="corner-hotzone" id="corner-hotzone" aria-hidden="true"></div>
@@ -115,7 +120,7 @@
                     <span id="sheet-title">Conectando...</span>
                 </span>
                 <button type="button" class="sheet-close" id="sheet-close" aria-label="Fechar">
-                    <svg class="ico" aria-hidden="true"><use href="#i-close"/></svg>
+                    <svg class="ico" aria-hidden="true"><use xlink:href="#i-close" href="#i-close"/></svg>
                 </button>
             </div>
 
@@ -151,12 +156,12 @@
             </div>
 
             <button type="button" class="sheet-btn" id="btn-fullscreen">
-                <svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg>
+                <svg class="ico" aria-hidden="true"><use xlink:href="#i-expand" href="#i-expand"/></svg>
                 <span id="btn-fullscreen-label">Tela cheia</span>
             </button>
 
             <a class="sheet-link" href="/manage" target="_blank" rel="noopener">
-                <svg class="ico" aria-hidden="true"><use href="#i-external"/></svg>
+                <svg class="ico" aria-hidden="true"><use xlink:href="#i-external" href="#i-external"/></svg>
                 Abrir gerenciador
             </a>
         </div>
@@ -166,6 +171,47 @@
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
 
     <script src="vendor/nosleep.min.js?v=1.3.1"></script>
-    <script src="app.js?v=1.3.1"></script>
+    <script>
+        // Escolhe o deck: app.js (navegadores atuais) ou app.legacy.js (ES5, Safari 9 do iPad 2 etc.).
+        // Se nem o legado rodar, mostra um aviso em vez da tela preta. Só sintaxe ES5 aqui.
+        (function () {
+            var legacy = /[?&]compat=1\b/.test(location.search);
+            if (!legacy) {
+                try { new Function('"use strict"; async () => {}; const [a] = [1]; class X {} for (const x of []) {} ({...{}});'); }
+                catch (e) { legacy = true; }
+            }
+            function tooOld(detail) {
+                var box = document.createElement('div');
+                box.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;display:-webkit-flex;display:flex;-webkit-align-items:center;align-items:center;-webkit-justify-content:center;justify-content:center;background:#0B0F17;color:#E5E7EB;font:16px/1.5 -apple-system,Helvetica,Arial,sans-serif;padding:24px;text-align:center';
+                box.innerHTML = '<div><div style="font-size:22px;font-weight:600;margin-bottom:8px">O MatDeck não abriu neste navegador</div>' +
+                    '<div style="color:#9CA3AF">' + detail + '<br>Use um navegador mais novo (Chrome 60+, Safari 10+) ou recarregue a página.</div></div>';
+                document.body.appendChild(box);
+            }
+            var firstError = '';
+            window.onerror = function (msg, src, line) { if (!firstError) firstError = String(msg) + (line ? ' (linha ' + line + ')' : ''); };
+            var s = document.createElement('script');
+            s.src = legacy ? 'app.legacy.js?v=1.3.1' : 'app.js?v=1.3.1';
+            s.async = false;
+            function errHtml() { return firstError ? '<br><code style="color:#F87171">' + firstError.replace(/</g, '&lt;') + '</code>' : ''; }
+            s.onload = function () {
+                var name = s.src.split('/').pop().split('?')[0];
+                if (!window.MATDECK_APP_LOADED) { tooOld('O script ' + name + ' carregou, mas não rodou.' + errHtml()); return; }
+                if (!window.MATDECK_APP_BOOTED) { tooOld('O script ' + name + ' parou durante a inicialização.' + errHtml()); return; }
+                // Deck no ar: erro não tratado dali em diante aparece numa faixa (toque para fechar), não some no console
+                window.onerror = function (msg, src, line) {
+                    var bar = document.getElementById('js-error-bar');
+                    if (bar) return;
+                    bar = document.createElement('div');
+                    bar.id = 'js-error-bar';
+                    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99998;background:#7F1D1D;color:#FEE2E2;font:13px/1.4 -apple-system,Helvetica,Arial,sans-serif;padding:8px 12px';
+                    bar.textContent = 'Erro no deck: ' + msg + (line ? ' (linha ' + line + ')' : '');
+                    bar.onclick = function () { bar.parentNode.removeChild(bar); };
+                    document.body.appendChild(bar);
+                };
+            };
+            s.onerror = function () { tooOld('Não foi possível baixar o script do deck.'); };
+            document.body.appendChild(s);
+        })();
+    </script>
 </body>
 </html>
