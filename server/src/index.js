@@ -354,6 +354,7 @@ class MatDeckServer {
         this.app.get(['/manage', '/manage.html'], servePage('manage.html'));
 
         // Sem cache "cego" no navegador do tablet: revalida a cada carga (ETag), para pegar app.js/style.css novos
+        this.app.get('/favicon.ico', (req, res) => res.sendFile(path.join(webDir, 'icon-192.png')));
         this.app.use(express.static(webDir, { index: false, etag: true, lastModified: true, maxAge: 0, setHeaders: (res) => res.set('Cache-Control', 'no-cache') }));
         this.app.get('/api/actions', async (req, res) => {
             let apps = [];
@@ -372,6 +373,7 @@ class MatDeckServer {
             const art = this.spotify.artOf(String(req.params.id || ''));
             if (!art) return res.status(404).end();
             res.set('Content-Type', art.mime);
+            res.set('X-Content-Type-Options', 'nosniff');
             res.set('Cache-Control', 'public, max-age=86400, immutable');
             res.send(art.buffer);
         });
@@ -436,7 +438,8 @@ class MatDeckServer {
         });
 
         this.app.post('/api/presets/:id', (req, res) => {
-            const result = this.presetManager.savePreset(req.params.id, req.body || {});
+            if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ success: false, error: 'Corpo precisa ser um objeto JSON com o preset' });
+            const result = this.presetManager.savePreset(req.params.id, req.body);
             if (!result.ok) return res.status(400).json({ success: false, error: result.error });
             if (this.currentProfileId === req.params.id) this.switchProfile(req.params.id);
             res.json({ success: true, preset: result.preset });
@@ -630,6 +633,15 @@ class MatDeckServer {
                 capabilities: this.getCapabilities(),
                 integrations: this.getIntegrationsStatus()
             });
+        });
+
+        // Erros de parse/limite do express.json e exceções nas rotas: resposta JSON, sem página HTML com stack
+        this.app.use((err, req, res, next) => {
+            if (res.headersSent) return next(err);
+            const status = err.status || err.statusCode || 500;
+            const error = err.type === 'entity.parse.failed' ? 'JSON inválido' : (err.type === 'entity.too.large' ? 'Corpo grande demais' : (status >= 500 ? 'Erro interno' : err.message));
+            if (status >= 500) console.error('[HTTP] Erro na rota', req.method, req.path, err.message);
+            res.status(status).json({ success: false, error });
         });
     }
 

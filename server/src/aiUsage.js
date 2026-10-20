@@ -182,6 +182,18 @@ class AiUsage extends EventEmitter {
         st.rateLimitHits = (st.rateLimitHits || 0) + 1;
         const grow = Math.min(RATE_LIMIT_BACKOFF_MAX_MS, RATE_LIMIT_BACKOFF_MS * Math.pow(2, st.rateLimitHits - 1));
         st.backoffUntil = Date.now() + Math.max(grow, err.retryAfterMs || 0);
+        // Depois do recuo, continua nesse ritmo por 30 min: zerar no 1º sucesso fazia OK -> 429 -> OK sem parar
+        st.calmIntervalMs = Math.max(grow, err.retryAfterMs || 0);
+        st.calmUntil = Date.now() + 30 * 60 * 1000;
+    }
+
+    /** Intervalo entre sondagens: o configurado, ou o do recuo enquanto um serviço estiver em "calmaria". */
+    pollIntervalMs() {
+        let ms = Math.max(15, Number(this.settings().pollSeconds) || 60) * 1000;
+        for (const st of [this.claude, this.codex]) {
+            if (st.calmUntil && Date.now() < st.calmUntil) ms = Math.max(ms, st.calmIntervalMs || 0);
+        }
+        return ms;
     }
 
     settings() {
@@ -222,7 +234,7 @@ class AiUsage extends EventEmitter {
         } finally {
             this.polling = false;
             this.emit('change', this.state());
-            this.schedule(Math.max(15, Number(this.settings().pollSeconds) || 60) * 1000);
+            this.schedule(this.pollIntervalMs());
         }
     }
 
