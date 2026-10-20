@@ -13,6 +13,8 @@
 const EventEmitter = require('events');
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { exec } = require('./hostExec');
 
 const POLL_MS = 2000;
@@ -38,6 +40,10 @@ class FanControl extends EventEmitter {
         this.polling = false;
         this.token = null;
         this.tokenTriedAt = 0;
+        // Token que o daemon já recusou, lembrado entre reinícios: tentar de novo renovaria o bloqueio de 5 min
+        this.rejectedFile = path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'fans-rejected-token.json');
+        this.rejectedToken = '';
+        try { this.rejectedToken = String(JSON.parse(fs.readFileSync(this.rejectedFile, 'utf8')).token || ''); } catch (e) { /* sem arquivo */ }
         this.scheme = 'https';
         this.devices = null;        // cache de GET /devices
         this.devicesAt = 0;
@@ -79,7 +85,7 @@ class FanControl extends EventEmitter {
 
     async resolveToken() {
         const cfgTok = String(this.settings().token || '').trim();
-        if (cfgTok) return cfgTok;
+        if (cfgTok) return cfgTok === this.rejectedToken ? null : cfgTok;
         if (this.token) return this.token;
         if (Date.now() - this.tokenTriedAt < 30 * 1000) return null;
         this.tokenTriedAt = Date.now();
@@ -87,7 +93,11 @@ class FanControl extends EventEmitter {
             exec('cat "$HOME/.config/org.coolercontrol.CoolerControl/CoolerControl.conf" 2>/dev/null', { timeout: 3000 }, (err, stdout) => resolve(String(stdout || '')));
         });
         const m = /daemonAccessTokens\][^[]*?=@ByteArray\(([^)]+)\)/.exec(text) || /=@ByteArray\((cc_[A-Za-z0-9]+)\)/.exec(text);
-        if (m) { this.token = m[1].trim(); console.log('[Fans] Token do CoolerControl lido da configuração da GUI'); }
+        const found = m ? m[1].trim() : '';
+        // Token já recusado: não tenta de novo (cada falha renova o bloqueio do daemon, que trava até a GUI);
+        // só volta quando a GUI gravar outro token no arquivo
+        if (found && found === this.rejectedToken) return null;
+        if (found) { this.token = found; console.log('[Fans] Token do CoolerControl lido da configuração da GUI'); }
         return this.token;
     }
 
@@ -124,14 +134,29 @@ class FanControl extends EventEmitter {
 
     /** Tenta https e, se a conexão TLS falhar, http (o daemon aceita os dois conforme a configuração). */
     async api(method, path, body) {
+        let r;
         try {
-            return await this.request(method, path, body, this.scheme);
+            r = await this.request(method, path, body, this.scheme);
         } catch (e) {
             const other = this.scheme === 'https' ? 'http' : 'https';
-            const r = await this.request(method, path, body, other);
+            r = await this.request(method, path, body, other);
             this.scheme = other;
-            return r;
         }
+        // Cada 401 conta como tentativa falha no daemon; depois de algumas ele responde 429 por minutos
+        // ("Try again in Ns"). Insistir renova o bloqueio, então a sondagem espera o prazo e o token da GUI
+        // é relido (a GUI pode ter gerado outro).
+        if (r.status === 429) {
+            const m = /(\d+)\s*s/.exec((r.json && r.json.error) || r.text || '');
+            const sec = m ? parseInt(m[1], 10) : 120;
+            throw Object.assign(new Error(`CoolerControl bloqueou a autenticação por ${sec}s (muitas tentativas falhas)`), { retryMs: (sec + 5) * 1000 });
+        }
+        if (r.status === 401) {
+            this.rejectedToken = this.token;
+            try { fs.writeFileSync(this.rejectedFile, JSON.stringify({ token: this.token, at: new Date().toISOString() })); } catch (e) { /* ignore */ }
+            this.token = null;
+            throw Object.assign(new Error('token recusado pelo CoolerControl: abra a GUI do CoolerControl para gerar outro (ou informe um em Ajustes)'), { retryMs: 30 * 1000 });
+        }
+        return r;
     }
 
     // ------------------------------------------------------------------
@@ -143,7 +168,7 @@ class FanControl extends EventEmitter {
         this.polling = true;
         try {
             this.token = await this.resolveToken();
-            if (!this.token) throw new Error('sem token do CoolerControl (crie um na GUI ou informe em Ajustes)');
+            if (!this.token) throw Object.assign(new Error(this.rejectedToken ? 'token recusado pelo CoolerControl: abra a GUI do CoolerControl para gerar outro (ou informe um em Ajustes)' : 'sem token do CoolerControl (crie um na GUI ou informe em Ajustes)'), { retryMs: 30 * 1000 });
             await this.refreshDevices();
             await this.refreshStatus();
             if (!this.available) { this.available = true; this.lastError = ''; console.log(`[Fans] CoolerControl conectado: ${this.channels.map(c => c.label).join(', ') || 'nenhuma ventoinha controlável'}`); }
@@ -153,17 +178,19 @@ class FanControl extends EventEmitter {
             if (this.available || this.lastError !== msg) console.warn('[Fans] CoolerControl indisponível:', msg);
             this.available = false;
             this.lastError = msg;
+            this.retryMs = e.retryMs || 0;
             this.emit('change', this.state());
         } finally {
             this.polling = false;
-            this.schedule(this.available ? POLL_MS : POLL_MS * 5);
+            const wait = this.retryMs || (this.available ? POLL_MS : POLL_MS * 5);
+            this.retryMs = 0;
+            this.schedule(wait);
         }
     }
 
     async refreshDevices() {
         if (this.devices && Date.now() - this.devicesAt < DEVICES_TTL_MS) return;
         const r = await this.api('GET', '/devices');
-        if (r.status === 401) throw new Error('token recusado pelo CoolerControl');
         if (r.status !== 200 || !r.json) throw new Error(`GET /devices -> HTTP ${r.status}`);
         let exclude;
         try {
