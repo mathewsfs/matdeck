@@ -18,6 +18,7 @@ const path = require('path');
 const { exec } = require('./hostExec');
 
 const POLL_MS = 2000;
+const POLL_IDLE_MS = 30000;         // sem cliente conectado ninguém vê o fader: só uma conferência a cada 30 s
 const DEVICES_TTL_MS = 60 * 1000;
 const WRITE_THROTTLE_MS = 250;
 const REQ_TIMEOUT_MS = 2500;
@@ -66,6 +67,18 @@ class FanControl extends EventEmitter {
         if (this.timer || !this.settings().enabled) return;
         this.schedule(500);
         console.log('[Fans] Integração com CoolerControl iniciada');
+    }
+
+    /** Com cliente conectado sonda a cada 2 s; sem ninguém, a cada 30 s. Ao ativar, sonda já. */
+    setActive(active) {
+        active = !!active;
+        if (active === this.active) return;
+        this.active = active;
+        if (active && this.timer) this.schedule(0);
+    }
+
+    pollIntervalMs() {
+        return this.active ? POLL_MS : POLL_IDLE_MS;
     }
 
     stop() {
@@ -182,7 +195,8 @@ class FanControl extends EventEmitter {
             this.emit('change', this.state());
         } finally {
             this.polling = false;
-            const wait = this.retryMs || (this.available ? POLL_MS : POLL_MS * 5);
+            const base = this.pollIntervalMs();
+            const wait = this.retryMs || (this.available ? base : Math.max(base, POLL_MS * 5));
             this.retryMs = 0;
             this.schedule(wait);
         }

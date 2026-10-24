@@ -1,14 +1,28 @@
 const fs = require('fs');
 const os = require('os');
-const { execFile, which } = require('./hostExec');
+const path = require('path');
+const { execFile, spawn, which } = require('./hostExec');
 const EventEmitter = require('events');
 
 const EXEC_TIMEOUT_MS = 800;
+const IDLE_INTERVAL_MS = 10000;       // sem nenhum cliente conectado ninguém vê os números: coleta a cada 10 s
+const GPU_STREAM_RETRIES = 3;         // quedas seguidas do nvidia-smi contínuo antes de voltar às chamadas avulsas
+const GPU_STREAM_RETRY_MS = 15000;
 const HISTORY_LEN = 60;               // 60 amostras = 1 min a 1 Hz (gráficos das teclas)
 const VIRTUAL_IFACE = /^(lo|docker|podman|cni|br-|veth|virbr|tun|tap|wg|vmnet|zt|tailscale|flannel)/i;
 const PHYSICAL_DISK = /^(sd[a-z]+|nvme\d+n\d+|vd[a-z]+|xvd[a-z]+|mmcblk\d+|hd[a-z]+)$/;
 
 const TOOL_MAX_FAILURES = 5;
+// Raiz alternativa do sysfs, só para testes com uma árvore /sys falsa (ex.: máquina AMD/Intel simulada)
+const SYS_ROOT = process.env.MATDECK_SYSFS_ROOT || '';
+const sysPath = (p) => `${SYS_ROOT}${p}`;
+const CPU_HWMON = /k10temp|zenpower|coretemp|cpu_thermal|soc_thermal/i;   // drivers de sensor da CPU (AMD, AMD alternativo, Intel, ARM)
+const PCI_VENDOR = { '0x1002': 'amd', '0x8086': 'intel', '0x10de': 'nvidia' };
+const VENDOR_LABEL = { amd: 'AMD', intel: 'Intel', nvidia: 'NVIDIA' };
+
+function readText(filePath) {
+    try { return fs.readFileSync(filePath, 'utf8').trim(); } catch (e) { return null; }
+}
 
 function run(cmd, args) {
     return new Promise((resolve) => {
@@ -42,6 +56,11 @@ class HardwareMonitor extends EventEmitter {
         this.intervalMs = intervalMs;
         this.timer = null;
         this.collecting = false;
+        this.active = false;          // true com algum cliente conectado (1 Hz); false = modo econômico
+        this.gpuStream = null;        // nvidia-smi em modo contínuo (um processo em vez de um por segundo)
+        this.gpuLatest = null;        // última linha do stream: { parts, at }
+        this.gpuStreamFailures = 0;
+        this.gpuStreamRetry = null;
         this.lastCpuSample = this.sampleCpu();
         this.lastCoreSamples = this.sampleCores();
         this.lastNet = this.sampleNet();
@@ -50,8 +69,11 @@ class HardwareMonitor extends EventEmitter {
         for (const k of ['cpuUsage', 'cpuTemp', 'gpuUsage', 'gpuTemp', 'netDown', 'netUp', 'diskRead', 'diskWrite']) this.history[k] = [];
 
         // Descobertos uma vez para não varrer o sysfs a cada segundo
-        this.cpuTempPath = this.findCpuTempPath();
-        this.amdGpu = this.findAmdGpu();
+        const cpuTemp = this.findCpuTemp();
+        this.cpuTempPath = cpuTemp ? cpuTemp.path : null;
+        this.cpuTempSource = cpuTemp ? cpuTemp.source : null;
+        this.sysGpus = this.findSysfsGpus();
+        this.sysGpu = HardwareMonitor.pickGpu(this.sysGpus);   // AMD (amdgpu), Intel (i915/xe) ou NVIDIA sem nvidia-smi (nouveau)
         this.hasNvidiaSmi = !!which('nvidia-smi');
         this.hasSensors = !!which('sensors');
         this.toolFailures = { sensors: 0, 'nvidia-smi': 0 };   // rodam 1x/s: falhando sempre, são desligados com aviso
@@ -73,11 +95,31 @@ class HardwareMonitor extends EventEmitter {
         if (arr.length > HISTORY_LEN) arr.splice(0, arr.length - HISTORY_LEN);
     }
 
+    currentInterval() {
+        return this.active ? this.intervalMs : IDLE_INTERVAL_MS;
+    }
+
     start() {
         if (this.timer) return;
         this.collect();
-        this.timer = setInterval(() => this.collect(), this.intervalMs);
-        console.log('[HardwareMonitor] Coleta de estatísticas de CPU, GPU e RAM iniciada');
+        this.timer = setInterval(() => this.collect(), this.currentInterval());
+        console.log(`[HardwareMonitor] Coleta de estatísticas de CPU, GPU e RAM iniciada (${this.active ? '1 Hz' : 'modo econômico, a cada ' + IDLE_INTERVAL_MS / 1000 + ' s sem clientes'})`);
+        console.log(`[HardwareMonitor] ${this.describe()}`);
+    }
+
+    /** Resumo do hardware detectado, para o log e o diagnóstico: CPU, fonte da temperatura e GPU escolhida. */
+    describe() {
+        const cpuModel = ((os.cpus()[0] || {}).model || 'CPU').replace(/\s+/g, ' ').trim();
+        const cpuTemp = this.cpuTempSource ? `temperatura via ${this.cpuTempSource}` : (this.hasSensors ? 'temperatura via sensors' : 'sem sensor de temperatura');
+        let gpu;
+        if (this.hasNvidiaSmi) gpu = 'NVIDIA via nvidia-smi';
+        else if (this.sysGpu) {
+            const g = this.sysGpu;
+            const parts = [g.busyPath ? 'uso' : null, g.tempPath ? 'temperatura' : null, g.vramTotalPath ? (g.vramUsedPath ? 'VRAM' : 'VRAM total') : null].filter(Boolean);
+            gpu = `${VENDOR_LABEL[g.vendor] || g.vendor} ${g.card} (${g.driver || 'driver ?'}${g.discrete ? ', dedicada' : ', integrada'}): ${parts.join(', ') || 'nada legível'}`;
+            if (this.sysGpus.length > 1) gpu += ` [outras: ${this.sysGpus.filter(x => x !== g).map(x => `${VENDOR_LABEL[x.vendor] || x.vendor} ${x.card}`).join(', ')}]`;
+        } else gpu = 'nenhuma GPU legível';
+        return `CPU ${cpuModel} (${cpuTemp}) | GPU: ${gpu}`;
     }
 
     stop() {
@@ -85,6 +127,99 @@ class HardwareMonitor extends EventEmitter {
             clearInterval(this.timer);
             this.timer = null;
         }
+        this.stopGpuStream();
+    }
+
+    /** Com cliente conectado: 1 Hz e nvidia-smi contínuo. Sem ninguém: a cada 10 s, chamadas avulsas. */
+    setActive(active) {
+        active = !!active;
+        if (active === this.active) return;
+        this.active = active;
+        if (this.timer) {
+            clearInterval(this.timer);
+            this.timer = setInterval(() => this.collect(), this.currentInterval());
+        }
+        if (active) {
+            if (this.hasNvidiaSmi) this.startGpuStream();
+            if (this.timer) this.collect(); // números frescos para quem acabou de conectar
+        } else {
+            this.stopGpuStream();
+        }
+    }
+
+    // --- nvidia-smi contínuo ------------------------------------------------
+
+    startGpuStream() {
+        if (this.gpuStream || !this.hasNvidiaSmi || !this.active) return;
+        if (this.gpuStreamRetry) { clearTimeout(this.gpuStreamRetry); this.gpuStreamRetry = null; }
+        let child;
+        try {
+            child = spawn('nvidia-smi', [
+                '--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total',
+                '--format=csv,noheader,nounits',
+                '-lms', String(this.intervalMs)
+            ], { stdio: ['ignore', 'pipe', 'pipe'] });
+        } catch (e) {
+            console.warn('[HardwareMonitor] nvidia-smi contínuo não iniciou; seguindo com chamadas avulsas:', e.message);
+            return;
+        }
+        this.gpuStream = child;
+        let buf = '';
+        child.stdout.on('data', (chunk) => {
+            buf += chunk.toString();
+            let nl;
+            while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim();
+                buf = buf.slice(nl + 1);
+                const parts = HardwareMonitor.parseNvidiaCsv(line);
+                if (parts) { this.gpuLatest = { parts, at: Date.now() }; this.gpuStreamFailures = 0; }
+            }
+        });
+        child.stderr.on('data', () => {});
+        const gone = (why) => {
+            if (this.gpuStream !== child) return;
+            this.gpuStream = null;
+            this.gpuLatest = null;
+            if (!this.active || !this.hasNvidiaSmi) return;
+            if (++this.gpuStreamFailures >= GPU_STREAM_RETRIES) {
+                console.warn(`[HardwareMonitor] nvidia-smi contínuo ${why} ${GPU_STREAM_RETRIES} vezes; seguindo com uma chamada por segundo`);
+                return;
+            }
+            this.gpuStreamRetry = setTimeout(() => { this.gpuStreamRetry = null; this.startGpuStream(); }, GPU_STREAM_RETRY_MS);
+            if (typeof this.gpuStreamRetry.unref === 'function') this.gpuStreamRetry.unref();
+        };
+        child.on('error', (e) => gone(`falhou (${e.message})`));
+        child.on('exit', (code, signal) => gone(`terminou (code=${code}, signal=${signal})`));
+    }
+
+    stopGpuStream() {
+        if (this.gpuStreamRetry) { clearTimeout(this.gpuStreamRetry); this.gpuStreamRetry = null; }
+        const child = this.gpuStream;
+        this.gpuStream = null;
+        this.gpuLatest = null;
+        if (!child) return;
+        // nvidia-smi em loop só sai com Ctrl+C (SIGINT; SIGTERM é ignorado); flatpak-spawn repassa o sinal ao host
+        try { child.kill('SIGINT'); } catch (e) { /* já saiu */ }
+        const hammer = setTimeout(() => { if (child.exitCode === null && child.signalCode === null) { try { child.kill('SIGKILL'); } catch (e) {} } }, 1500);
+        if (typeof hammer.unref === 'function') hammer.unref();
+    }
+
+    /** "3, 42, 1367, 8188" -> [3, 42, 1367, 8188]; null se a linha não for uma amostra. */
+    static parseNvidiaCsv(line) {
+        const parts = String(line || '').trim().split(',').map(s => parseFloat(s.trim()));
+        return parts.length >= 4 && !parts.some(isNaN) ? parts : null;
+    }
+
+    static nvidiaStats(parts) {
+        const [usage, temp, usedMB, totalMB] = parts;
+        return {
+            usage: Math.round(usage),
+            temp: Math.round(temp),
+            vramUsedGB: (usedMB / 1024).toFixed(1),
+            vramTotalGB: (totalMB / 1024).toFixed(1),
+            vramPercent: totalMB > 0 ? Math.round((usedMB / totalMB) * 100) : 0,
+            available: true
+        };
     }
 
     sampleCpu() {
@@ -204,24 +339,35 @@ class HardwareMonitor extends EventEmitter {
 
     // --- CPU temperature -------------------------------------------------
 
-    findCpuTempPath() {
-        // Prefere hwmon de CPU (k10temp AMD, coretemp Intel) e só depois thermal_zone
-        for (const hw of listDir('/sys/class/hwmon')) {
-            const base = `/sys/class/hwmon/${hw}`;
-            let name = '';
-            try { name = fs.readFileSync(`${base}/name`, 'utf8').trim(); } catch (e) {}
-            if (/k10temp|coretemp|zenpower|cpu_thermal/i.test(name)) {
-                for (const f of listDir(base)) {
-                    if (/^temp\d+_input$/.test(f)) return `${base}/${f}`;
-                }
+    /**
+     * Sensor de temperatura da CPU. Primeiro o hwmon do driver da CPU (k10temp/zenpower na AMD, coretemp na
+     * Intel), preferindo o sensor do pacote (Tctl/Tdie, "Package id 0") aos de núcleo (Tccd1, "Core 0");
+     * sem rótulos (k10temp antigo), o temp1. Depois as thermal_zone (x86_pkg_temp, cpu, soc).
+     */
+    findCpuTemp() {
+        for (const hw of listDir(sysPath('/sys/class/hwmon'))) {
+            const base = sysPath(`/sys/class/hwmon/${hw}`);
+            const name = readText(`${base}/name`) || '';
+            if (!CPU_HWMON.test(name)) continue;
+            let best = null;
+            for (const f of listDir(base)) {
+                const m = /^temp(\d+)_input$/.exec(f);
+                if (!m) continue;
+                const index = Number(m[1]);
+                const label = readText(`${base}/temp${index}_label`) || '';
+                let score = 1;                                               // núcleo rotulado (Core 3, Tccd1)
+                if (!label) score = 2;                                       // sem rótulo: temp1 costuma ser o pacote
+                if (/^(CPU|Core 0)\b/i.test(label)) score = 3;
+                if (/^(Tctl|Tdie|Package id \d+|Physical id \d+)$/i.test(label)) score = 4;
+                if (!best || score > best.score || (score === best.score && index < best.index)) best = { path: `${base}/${f}`, label: label || `temp${index}`, score, index };
             }
+            if (best) return { path: best.path, source: `${name}/${best.label}` };
         }
-        for (const zone of listDir('/sys/class/thermal')) {
+        for (const zone of listDir(sysPath('/sys/class/thermal'))) {
             if (!zone.startsWith('thermal_zone')) continue;
-            const base = `/sys/class/thermal/${zone}`;
-            let type = '';
-            try { type = fs.readFileSync(`${base}/type`, 'utf8').trim(); } catch (e) {}
-            if (/x86_pkg_temp|cpu|soc/i.test(type) && fs.existsSync(`${base}/temp`)) return `${base}/temp`;
+            const base = sysPath(`/sys/class/thermal/${zone}`);
+            const type = readText(`${base}/type`) || '';
+            if (/x86_pkg_temp|cpu|soc/i.test(type) && fs.existsSync(`${base}/temp`)) return { path: `${base}/temp`, source: `${zone}/${type}` };
         }
         return null;
     }
@@ -241,26 +387,72 @@ class HardwareMonitor extends EventEmitter {
 
     // --- GPU ---------------------------------------------------------------
 
-    findAmdGpu() {
-        for (const card of listDir('/sys/class/drm')) {
+    /**
+     * GPUs visíveis no sysfs (/sys/class/drm/cardN/device). Fabricante pelo vendor PCI, driver pelo uevent.
+     * - AMD (amdgpu): uso (gpu_busy_percent), temperatura (hwmon "edge") e VRAM usada/total.
+     * - Intel (xe/i915): o kernel não expõe uso; Arc tem temperatura (hwmon) e VRAM total (tile0).
+     * - NVIDIA sem nvidia-smi (nouveau): só temperatura, quando o hwmon existe.
+     */
+    findSysfsGpus() {
+        const gpus = [];
+        for (const card of listDir(sysPath('/sys/class/drm'))) {
             if (!/^card\d+$/.test(card)) continue;
-            const dev = `/sys/class/drm/${card}/device`;
-            if (!fs.existsSync(`${dev}/gpu_busy_percent`)) continue;
+            const dev = sysPath(`/sys/class/drm/${card}/device`);
+            if (!fs.existsSync(dev)) continue;
+            const uevent = readText(`${dev}/uevent`) || '';
+            const driver = (/^DRIVER=(.+)$/m.exec(uevent) || [])[1] || (() => { try { return path.basename(fs.readlinkSync(`${dev}/driver`)); } catch (e) { return null; } })();
+            const vendorId = (readText(`${dev}/vendor`) || '').toLowerCase();
+            const vendor = PCI_VENDOR[vendorId] || (driver === 'amdgpu' || driver === 'radeon' ? 'amd' : /^(i915|xe)$/.test(driver || '') ? 'intel' : /^(nvidia|nouveau)$/.test(driver || '') ? 'nvidia' : null);
+            if (!vendor) continue;
+            let pciAddress = null;
+            try { pciAddress = path.basename(fs.realpathSync(dev)); } catch (e) { /* sem PCI */ }
+            // iGPU fica no barramento PCI 00 (0000:00:xx.x); dedicada em outro barramento
+            const discrete = /^[0-9a-f]{4}:([0-9a-f]{2}):/i.test(pciAddress || '') ? !/^[0-9a-f]{4}:00:/i.test(pciAddress) : null;
             let tempPath = null;
+            let tempLabel = null;
             for (const hw of listDir(`${dev}/hwmon`)) {
-                if (fs.existsSync(`${dev}/hwmon/${hw}/temp1_input`)) {
-                    tempPath = `${dev}/hwmon/${hw}/temp1_input`;
-                    break;
+                const hb = `${dev}/hwmon/${hw}`;
+                for (const f of listDir(hb)) {
+                    const m = /^temp(\d+)_input$/.exec(f);
+                    if (!m) continue;
+                    const label = readText(`${hb}/temp${m[1]}_label`) || '';
+                    // amdgpu: edge (temp1), junction, mem; Intel xe: pkg/vram. Prefere edge/pkg, senão o primeiro
+                    if (!tempPath || /^(edge|pkg)$/i.test(label)) { tempPath = `${hb}/${f}`; tempLabel = label || `temp${m[1]}`; }
                 }
+                if (tempPath) break;
             }
-            return {
-                busyPath: `${dev}/gpu_busy_percent`,
-                tempPath,
-                vramUsedPath: fs.existsSync(`${dev}/mem_info_vram_used`) ? `${dev}/mem_info_vram_used` : null,
-                vramTotalPath: fs.existsSync(`${dev}/mem_info_vram_total`) ? `${dev}/mem_info_vram_total` : null
-            };
+            const firstExisting = (...cands) => cands.find(p => fs.existsSync(p)) || null;
+            const vramTotalPath = firstExisting(`${dev}/mem_info_vram_total`, `${dev}/tile0/physical_vram_size_bytes`);
+            const vramUsedPath = firstExisting(`${dev}/mem_info_vram_used`);
+            const busyPath = firstExisting(`${dev}/gpu_busy_percent`);
+            gpus.push({ card, vendor, driver, pciAddress, discrete, busyPath, tempPath, tempLabel, vramUsedPath, vramTotalPath, vramTotalBytes: vramTotalPath ? readNumber(vramTotalPath) : null });
         }
-        return null;
+        return gpus;
+    }
+
+    /** Com iGPU + dedicada, fica com a dedicada; em empate, a com mais VRAM, depois a que expõe uso e temperatura. */
+    static pickGpu(gpus) {
+        const usable = (gpus || []).filter(g => g.busyPath || g.tempPath || g.vramTotalPath);
+        if (!usable.length) return null;
+        const score = (g) => (g.discrete ? 1000 : 0) + ((g.vramTotalBytes || 0) / 1024 ** 3) + (g.busyPath ? 10 : 0) + (g.tempPath ? 1 : 0);
+        return usable.slice().sort((a, b) => score(b) - score(a) || a.card.localeCompare(b.card))[0];
+    }
+
+    /** Leitura da GPU escolhida no sysfs. Campos que o driver não expõe vêm como null ("--" nas teclas). */
+    readSysfsGpu(g) {
+        const usage = g.busyPath ? readNumber(g.busyPath) : null;
+        const tempRaw = g.tempPath ? readNumber(g.tempPath) : null;
+        const used = g.vramUsedPath ? readNumber(g.vramUsedPath) : null;
+        const total = g.vramTotalPath ? readNumber(g.vramTotalPath) : null;
+        return {
+            usage: usage === null ? null : Math.max(0, Math.min(100, usage)),
+            temp: tempRaw !== null ? Math.round(tempRaw > 1000 ? tempRaw / 1000 : tempRaw) : null,
+            vramUsedGB: used !== null ? (used / 1024 ** 3).toFixed(1) : (total !== null ? '--' : '0.0'),
+            vramTotalGB: total !== null ? (total / 1024 ** 3).toFixed(1) : '0.0',
+            vramPercent: used !== null && total ? Math.round((used / total) * 100) : (total !== null ? null : 0),
+            vendor: g.vendor,
+            available: true
+        };
     }
 
     emptyGpu() {
@@ -280,40 +472,21 @@ class HardwareMonitor extends EventEmitter {
 
     async getGpuStats() {
         if (this.hasNvidiaSmi) {
+            // Stream contínuo (com cliente conectado): amostra recente sem criar processo nenhum
+            if (this.gpuStream && this.gpuLatest && Date.now() - this.gpuLatest.at < this.intervalMs * 3) {
+                return HardwareMonitor.nvidiaStats(this.gpuLatest.parts);
+            }
             const out = await this.tool('nvidia-smi', [
                 '--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total',
                 '--format=csv,noheader,nounits'
             ]);
             if (out) {
-                const parts = out.trim().split('\n')[0].split(',').map(s => parseFloat(s.trim()));
-                if (parts.length >= 4 && !parts.some(isNaN)) {
-                    const [usage, temp, usedMB, totalMB] = parts;
-                    return {
-                        usage: Math.round(usage),
-                        temp: Math.round(temp),
-                        vramUsedGB: (usedMB / 1024).toFixed(1),
-                        vramTotalGB: (totalMB / 1024).toFixed(1),
-                        vramPercent: totalMB > 0 ? Math.round((usedMB / totalMB) * 100) : 0,
-                        available: true
-                    };
-                }
+                const parts = HardwareMonitor.parseNvidiaCsv(out.trim().split('\n')[0]);
+                if (parts) return HardwareMonitor.nvidiaStats(parts);
             }
         }
 
-        if (this.amdGpu) {
-            const usage = readNumber(this.amdGpu.busyPath) || 0;
-            const tempRaw = this.amdGpu.tempPath ? readNumber(this.amdGpu.tempPath) : null;
-            const used = this.amdGpu.vramUsedPath ? readNumber(this.amdGpu.vramUsedPath) : null;
-            const total = this.amdGpu.vramTotalPath ? readNumber(this.amdGpu.vramTotalPath) : null;
-            return {
-                usage,
-                temp: tempRaw !== null ? Math.round(tempRaw / 1000) : null,
-                vramUsedGB: used !== null ? (used / 1024 ** 3).toFixed(1) : '0.0',
-                vramTotalGB: total !== null ? (total / 1024 ** 3).toFixed(1) : '0.0',
-                vramPercent: used !== null && total ? Math.round((used / total) * 100) : 0,
-                available: true
-            };
-        }
+        if (this.sysGpu) return this.readSysfsGpu(this.sysGpu);
 
         return this.emptyGpu();
     }
