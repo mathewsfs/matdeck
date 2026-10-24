@@ -1,0 +1,37 @@
+name: Sugerir um recurso
+description: Uma ação nova, uma integração ou uma melhoria no deck ou no gerenciador
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Que situação isso resolve?
+      description: Conte o momento em que você sentiu falta disso, não só a solução que imagina.
+      placeholder: "Quando estou numa reunião do Meet e..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: O que você propõe
+      description: Como ficaria na tecla, no gerenciador ou no servidor. Se for uma integração nova, diga qual API ou protocolo o aplicativo oferece.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Nova ação ou integração
+        - Deck (tablet)
+        - Gerenciador
+        - Servidor ou telemetria
+        - APK Android
+        - Empacotamento e distribuição
+        - Outra
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que você já tentou

@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  servidor:
+    name: Servidor (testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Dependências
+        working-directory: server
+        run: npm ci --no-audit --no-fund
+      - name: Testes unitários
+        working-directory: server
+        run: npm test
+      - name: npm audit (alto ou crítico)
+        working-directory: server
+        run: npm audit --audit-level=high
+
+  deck-legado:
+    name: Deck ES5 (app.legacy.js em dia)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: scripts/legacy-build/package-lock.json
+      - name: Regenerar o bundle ES5
+        working-directory: scripts/legacy-build
+        run: npm ci --no-audit --no-fund && npm run build
+      - name: O arquivo versionado precisa ser igual ao gerado
+        run: |
+          if ! git diff --quiet -- server/web/app.legacy.js; then
+            echo "::error::server/web/app.legacy.js está desatualizado em relação ao app.js. Rode: cd scripts/legacy-build && npm run build"
+            git --no-pager diff --stat -- server/web/app.legacy.js
+            exit 1
+          fi
+
+  android:
+    name: APK (compila)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-33 build-tools;33.0.2
+      - name: Gradle
+        working-directory: android-client
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon

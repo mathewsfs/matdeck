@@ -1,0 +1,61 @@
+name: Relatar um problema
+description: Algo não funciona como esperado no servidor, no deck, no gerenciador ou no APK
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar. Falhas de **segurança** não vão aqui: use *Security → Report a vulnerability*.
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do MatDeck
+      description: Aparece no início do log do servidor e em `GET /api/status` (`version`). Diga também se é estável ou beta.
+      placeholder: "1.4.0-beta.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: componente
+    attributes:
+      label: Onde acontece
+      multiple: true
+      options:
+        - Servidor (Flatpak)
+        - Servidor (a partir do código)
+        - Deck no navegador
+        - Gerenciador (/manage)
+        - APK Android
+        - Integração (Discord, TeamSpeak, OBS, Meet, Nextcloud, Spotify)
+        - Telemetria, ventoinhas ou mixer
+    validations:
+      required: true
+  - type: textarea
+    id: ambiente
+    attributes:
+      label: Ambiente
+      description: Distribuição e versão, ambiente gráfico (KDE Wayland, X11...), CPU e GPU, e o aparelho do deck (modelo, Android ou iOS e navegador).
+      placeholder: "Fedora 44 KDE Wayland · Ryzen 7900X + RTX · tablet Samsung Android 4.4.4 no Chrome 33"
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Abra o deck no tablet
+        2. Toque em...
+        3. Veja que...
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que deveria acontecer
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log do servidor
+      description: Trecho relevante de `journalctl --user -o cat` (Flatpak) ou do terminal. Apague tokens e endereços que não queira expor.
+      render: text

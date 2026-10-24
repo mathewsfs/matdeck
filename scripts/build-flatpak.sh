@@ -32,7 +32,8 @@ flatpak install --user -y --noninteractive flathub \
     "org.freedesktop.Sdk.Extension.node24//${RUNTIME_VERSION}" >/dev/null
 
 echo "[MatDeck] Compilando ${APP_ID}..."
-flatpak-builder --user --install --force-clean --repo="${REPO_DIR}" "${BUILD_DIR}" "${MANIFEST}"
+# FLATPAK_BUILDER_ARGS: opções extras (a CI passa --disable-rofiles-fuse)
+flatpak-builder --user --install --force-clean ${FLATPAK_BUILDER_ARGS:-} --repo="${REPO_DIR}" "${BUILD_DIR}" "${MANIFEST}"
 
 mkdir -p "${BASE_DIR}/dist"
 flatpak build-bundle "${REPO_DIR}" "${BASE_DIR}/dist/MatDeck.flatpak" "${APP_ID}"
