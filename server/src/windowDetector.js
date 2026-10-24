@@ -24,6 +24,16 @@ const TITLE_RULES = [
     { profile: 'spotify', re: /^Spotify( Premium| Free)?$/ }
 ];
 
+// Apps que o Auto-Perfil reconhece (id = perfil embutido de mesmo nome; o usuário pode redirecionar em Ajustes)
+const DETECTABLE_APPS = [
+    { id: 'obs', label: 'OBS Studio' },
+    { id: 'discord', label: 'Discord' },
+    { id: 'teamspeak', label: 'TeamSpeak' },
+    { id: 'meet', label: 'Google Meet' },
+    { id: 'nextcloud', label: 'Nextcloud Talk' },
+    { id: 'spotify', label: 'Spotify' }
+];
+
 const BACKEND_LABEL = {
     kwin: 'script KWin (evento)',
     kdotool: 'kdotool',
@@ -491,6 +501,8 @@ class WindowDetector extends EventEmitter {
     // ------------------------------------------------------------------
     // Casamento com perfis
     // ------------------------------------------------------------------
+
+    static get DETECTABLE_APPS() { return DETECTABLE_APPS; }
 
     static matchProfile(title, app) {
         const cls = (app || '').trim();
