@@ -8,6 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const ConfigStore = require('./config');
+const auth = require('./auth');
 const WindowDetector = require('./windowDetector');
 const HardwareMonitor = require('./hardwareMonitor');
 const PresetManager = require('./presetManager');
@@ -17,6 +18,7 @@ const { buildActionCatalog } = require('./actionCatalog');
 
 const OBSProfile = require('./profiles/obs');
 const DiscordProfile = require('./profiles/discord');
+const DiscordRpc = require('./discordRpc');
 const TeamSpeakProfile = require('./profiles/teamspeak');
 const MeetProfile = require('./profiles/meet');
 const NextcloudProfile = require('./profiles/nextcloud');
@@ -41,6 +43,20 @@ const UDP_BROADCAST_PORT = 8889;
 const WS_HEARTBEAT_MS = 25000;
 const VIRTUAL_IFACE = /^(docker|podman|cni|br-|veth|virbr|tun|tap|wg|vmnet|lo|zt|tailscale)/i;
 
+// O que um dispositivo emparelhado (tablet) pode pedir por HTTP além do WebSocket: a página do deck,
+// seus assets e as leituras que o deck faz (status, HUD e imagens das teclas). Tudo o mais é do gerenciador
+// e só responde ao próprio PC (loopback).
+const DEVICE_GET_PATHS = [
+    /^\/api\/session$/,
+    /^\/api\/status$/,
+    /^\/api\/hardware$/,
+    /^\/api\/apps\/[^/]+\/icon(\.json)?$/,
+    /^\/api\/spotify\/art\/[^/]+$/,
+    /^\/api\/media\/art\/[^/]+$/,
+    /^\/media\//
+];
+const PAIR_POST_PATHS = new Set(['/api/pair/start', '/api/pair/verify']);
+
 const BUILTIN_PROFILE_IDS = ['obs', 'discord', 'teamspeak', 'meet', 'nextcloud', 'spotify', 'default', 'more'];
 // Perfis embutidos sem estado próprio: podem ser sobrescritos por um preset salvo com o mesmo id
 const OVERRIDABLE_PROFILE_IDS = ['default', 'more'];
@@ -53,19 +69,39 @@ class MatDeckServer {
         this.wss = new WebSocketServer({
             server: this.server,
             path: '/deck',
-            verifyClient: (info) => {
-                const ok = MatDeckServer.originAllowed(info.origin, info.req.headers.host);
-                if (!ok) console.warn(`[WebSocket] Conexão recusada: origem ${info.origin} ≠ host ${info.req.headers.host} | ${(info.req.headers['user-agent'] || '?').slice(0, 120)}`);
-                return ok;
+            verifyClient: (info, cb) => {
+                const req = info.req;
+                const ua = (req.headers['user-agent'] || '?').slice(0, 120);
+                if (!this.hostAllowlist.isAllowed(req.headers.host)) {
+                    console.warn(`[WebSocket] Conexão recusada: Host ${req.headers.host} não é deste computador | ${ua}`);
+                    return cb(false, 421, 'Misdirected Request');
+                }
+                if (!MatDeckServer.originAllowed(info.origin, req.headers.host)) {
+                    console.warn(`[WebSocket] Conexão recusada: origem ${info.origin} ≠ host ${req.headers.host} | ${ua}`);
+                    return cb(false, 403, 'Forbidden');
+                }
+                const who = auth.classifyRequest(req, this.devices);
+                if (who.role === 'guest') {
+                    console.log(`[WebSocket] Conexão de ${who.ip} sem emparelhamento; aguardando PIN | ${ua}`);
+                    return cb(false, 401, 'Unauthorized');
+                }
+                req.matdeckAuth = who;
+                cb(true);
             }
         });
 
         this.currentProfileId = 'default';
-        this.autoDetectEnabled = true;
+        this.autoDetectEnabled = false;
         this.clients = new Set();
+        this.hasViewers = false; // algum deck/gerenciador conectado: coletores em tempo real; sem ninguém, modo econômico
         this.startedAt = Date.now();
 
         this.config = new ConfigStore();
+        this.autoDetectEnabled = (this.config.get('ui') || {}).autoDetect === true; // nasce desligado; lembra o último estado
+        // Acesso: loopback = este PC (gerenciador e API completa); rede = dispositivo emparelhado por PIN
+        this.hostAllowlist = new auth.HostAllowlist({ extra: () => (this.config.get('server') || {}).allowedHosts || [] });
+        this.devices = new auth.DeviceRegistry(path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'devices.json'));
+        this.pairing = new auth.PairingManager(this.devices);
         this.hardwareMonitor = new HardwareMonitor(1000);
         this.presetManager = new PresetManager(undefined, RESERVED_PROFILE_IDS);
         this.audioMixer = new AudioMixer();
@@ -74,6 +110,7 @@ class MatDeckServer {
         this.mediaActions = new MediaPlayerActions(this);
         this.fanControl = new FanControl(this.config);
         this.aiUsage = new AiUsage(this.config);
+        this.discordRpc = new DiscordRpc(this.config);
 
         this.profiles = new Map();
         this.profiles.set('obs', new OBSProfile(this));
@@ -86,6 +123,8 @@ class MatDeckServer {
         this.profiles.set('more', new MoreProfile(this));
 
         const pluginsDir = process.env.MATDECK_DATA_DIR ? path.join(process.env.MATDECK_DATA_DIR, 'plugins') : path.resolve(__dirname, '../../plugins');
+        // Imagens/GIFs enviados pelo gerenciador para as teclas (nome = hash do conteúdo)
+        this.mediaDir = path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'media');
         this.pluginLoader = new PluginLoader(pluginsDir);
         this.elgatoBridge = new ElgatoBridge(parseInt(process.env.MATDECK_ELGATO_PORT, 10) || 9876, {
             pluginsDir,
@@ -107,6 +146,7 @@ class MatDeckServer {
     init() {
         this.setupExpress();
         this.setupWebSockets();
+        this.setupPairing();
         this.setupElgato();
         this.setupWindowDetector();
         this.setupHardwareTelemetry();
@@ -115,6 +155,7 @@ class MatDeckServer {
         this.setupMediaTelemetry();
         this.setupFanTelemetry();
         this.setupAiTelemetry();
+        this.setupDiscordRpc();
         this.setupUdpDiscovery();
         this.setupShutdown();
 
@@ -249,6 +290,17 @@ class MatDeckServer {
     }
 
     /** Sem Origin (app nativo, curl, bandeja) ou Origin igual ao host da requisição. */
+    /** Extensão pelos bytes iniciais (não confia no nome do arquivo). */
+    static imageExtension(buf) {
+        if (buf.length < 12) return null;
+        const head = buf.subarray(0, 12);
+        if (head.subarray(0, 6).toString('latin1') === 'GIF87a' || head.subarray(0, 6).toString('latin1') === 'GIF89a') return 'gif';
+        if (head[0] === 0x89 && head.subarray(1, 4).toString('latin1') === 'PNG') return 'png';
+        if (head[0] === 0xFF && head[1] === 0xD8 && head[2] === 0xFF) return 'jpg';
+        if (head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
+        return null;
+    }
+
     static originAllowed(origin, host) {
         if (!origin) return true;
         try {
@@ -333,6 +385,29 @@ class MatDeckServer {
     // ------------------------------------------------------------------
 
     setupExpress() {
+        // Host precisa ser um nome/IP desta máquina: fecha DNS rebinding (um site de fora apontando o próprio
+        // domínio para 127.0.0.1 passaria pela checagem de Origin abaixo, porque Origin e Host seriam iguais)
+        this.app.use((req, res, next) => {
+            if (this.hostAllowlist.isAllowed(req.headers.host)) return next();
+            res.status(421).json({ success: false, error: 'Host não reconhecido' });
+        });
+
+        // Papel de quem chama: este PC (loopback) tem tudo; a rede precisa de token emparelhado por PIN
+        this.app.use((req, res, next) => {
+            const who = auth.classifyRequest(req, this.devices);
+            req.matdeck = who;
+            if (who.role === 'trusted') return next();
+            const p = req.path;
+            const isRead = req.method === 'GET' || req.method === 'HEAD';
+            if (p === '/manage' || p.startsWith('/manage.')) return MatDeckServer.sendManagerBlocked(res);
+            if (isRead && !p.startsWith('/api/') && !p.startsWith('/media/') && !p.startsWith('/elgato/')) return next(); // deck e assets
+            if (req.method === 'POST' && PAIR_POST_PATHS.has(p)) return next();
+            if (p === '/api/session') return next();
+            if (who.role === 'guest') return res.status(401).json({ success: false, error: 'Dispositivo não emparelhado', pairing: true });
+            if (isRead && DEVICE_GET_PATHS.some(re => re.test(p))) return next();
+            res.status(403).json({ success: false, error: 'Disponível só no computador onde o MatDeck está rodando' });
+        });
+
         // Páginas de outros sites não podem disparar teclas, instalar plugins ou derrubar o servidor:
         // requisições com Origin precisam vir da própria origem do servidor (sem Origin = app nativo, curl, bandeja)
         this.app.use((req, res, next) => {
@@ -365,6 +440,7 @@ class MatDeckServer {
         // Sem cache "cego" no navegador do tablet: revalida a cada carga (ETag), para pegar app.js/style.css novos
         this.app.get('/favicon.ico', (req, res) => res.sendFile(path.join(webDir, 'icon-192.png')));
         this.app.use(express.static(webDir, { index: false, etag: true, lastModified: true, maxAge: 0, setHeaders: (res) => res.set('Cache-Control', 'no-cache') }));
+        this.app.use('/media', express.static(this.mediaDir, { index: false, fallthrough: false, maxAge: '365d', immutable: true }));
         this.app.get('/api/actions', async (req, res) => {
             let apps = [];
             try { apps = await this.appLauncher.list(); } catch (e) { /* catálogo segue sem apps */ }
@@ -550,6 +626,10 @@ class MatDeckServer {
             res.json({ success: true, profile: this.currentProfileId });
         });
 
+        this.app.get('/api/autodetect', (req, res) => {
+            res.json({ enabled: this.autoDetectEnabled, apps: this.listAutoDetectApps(), lastDetectedWindow: this.windowDetector.lastDetected });
+        });
+
         this.app.post('/api/autodetect', (req, res) => {
             const { enabled } = req.body || {};
             this.setAutoDetect(enabled !== undefined ? enabled : !this.autoDetectEnabled);
@@ -566,12 +646,38 @@ class MatDeckServer {
         // Configurações
         this.app.get('/api/config', (req, res) => res.json(this.config.all()));
 
+        // Discord: abre a janela de autorização do aplicativo (Ajustes > Discord > Autorizar)
+        this.app.post('/api/discord/authorize', async (req, res) => {
+            try {
+                await this.discordRpc.authorizeNow();
+                res.json({ success: true, status: this.discordRpc.getStatus() });
+            } catch (e) {
+                res.status(400).json({ success: false, error: e.message });
+            }
+        });
+
         this.app.post('/api/config', (req, res) => {
             if (!req.body || typeof req.body !== 'object') {
                 return res.status(400).json({ success: false, error: 'Corpo inválido' });
             }
             const updated = this.config.update(req.body);
             res.json({ success: true, config: updated });
+        });
+
+        // Imagem/GIF própria para uma tecla: corpo binário, grava em media/<hash>.<ext> e devolve a URL
+        this.app.post('/api/media', express.raw({ type: () => true, limit: '20mb' }), (req, res) => {
+            try {
+                if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ success: false, error: 'Envie a imagem no corpo da requisição' });
+                const ext = MatDeckServer.imageExtension(req.body);
+                if (!ext) return res.status(400).json({ success: false, error: 'Formato não reconhecido: use GIF, PNG, JPEG ou WebP' });
+                const name = `${crypto.createHash('sha1').update(req.body).digest('hex').slice(0, 16)}.${ext}`;
+                fs.mkdirSync(this.mediaDir, { recursive: true });
+                const file = path.join(this.mediaDir, name);
+                if (!fs.existsSync(file)) fs.writeFileSync(file, req.body);
+                res.json({ success: true, url: `/media/${name}`, bytes: req.body.length });
+            } catch (e) {
+                res.status(500).json({ success: false, error: e.message });
+            }
         });
 
         // Plugins do Stream Deck (Elgato)
@@ -646,6 +752,48 @@ class MatDeckServer {
         });
         this.app.get('/api/debug/layout', (req, res) => res.json(this.layoutDumps || {}));
 
+        // Acesso: papel de quem chama, emparelhamento por PIN e dispositivos lembrados
+        this.app.get('/api/session', (req, res) => {
+            const who = req.matdeck;
+            res.json({ role: who.role, trusted: who.role === 'trusted', device: who.device ? { id: who.device.id, name: who.device.name } : null });
+        });
+        this.app.post('/api/pair/start', (req, res) => {
+            const who = req.matdeck;
+            if (who.role !== 'guest') return res.status(400).json({ success: false, error: who.role === 'trusted' ? 'Este computador já tem acesso total; o PIN é só para outros dispositivos.' : 'Este dispositivo já está emparelhado.' });
+            const body = req.body || {};
+            const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 60) : auth.describeClient(req.headers['user-agent']);
+            const r = this.pairing.start({ ip: who.ip, name });
+            if (!r.ok) return res.status(r.status).json({ success: false, error: r.error, retryAfterMs: r.retryAfterMs });
+            console.log(`[Auth] ${name} (${who.ip}) pediu para conectar; PIN exibido no gerenciador`);
+            res.json({ success: true, id: r.session.id, expiresAt: r.session.expiresAt, ttlMs: r.session.ttlMs });
+        });
+        this.app.post('/api/pair/verify', (req, res) => {
+            const who = req.matdeck;
+            if (who.role !== 'guest') return res.status(400).json({ success: false, error: 'Este dispositivo não precisa de PIN.' });
+            const body = req.body || {};
+            const r = this.pairing.verify({ id: body.id, pin: body.pin === undefined || body.pin === null ? '' : String(body.pin), ip: who.ip });
+            if (!r.ok) return res.status(r.status).json({ success: false, error: r.error, attemptsLeft: r.attemptsLeft, retryAfterMs: r.retryAfterMs });
+            res.set('Set-Cookie', auth.deviceCookie(r.token));
+            console.log(`[Auth] Dispositivo emparelhado: ${r.device.name} (${who.ip})`);
+            res.json({ success: true, token: r.token, device: r.device });
+        });
+        this.app.get('/api/pair/pending', (req, res) => res.json({ pending: this.pairing.pending() }));
+        this.app.delete('/api/pair/:id', (req, res) => {
+            // "Recusar" no gerenciador: cancela e deixa o IP em espera por 10 minutos
+            if (!this.pairing.cancel(req.params.id, { punish: true })) return res.status(404).json({ success: false, error: 'Pedido não encontrado' });
+            res.json({ success: true });
+        });
+        this.app.get('/api/devices', (req, res) => res.json({ devices: this.listDevices() }));
+        this.app.delete('/api/devices/:id', (req, res) => {
+            const dev = this.devices.get(req.params.id);
+            if (!dev || !this.devices.remove(dev.id)) return res.status(404).json({ success: false, error: 'Dispositivo não encontrado' });
+            for (const ws of this.clients) {
+                if (ws._deviceId === dev.id) { try { ws.close(4401, 'Acesso removido'); } catch (e) {} }
+            }
+            console.log(`[Auth] Dispositivo removido: ${dev.name} (${dev.ip})`);
+            res.json({ success: true });
+        });
+
         this.app.get('/api/status', (req, res) => {
             res.json({
                 version: VERSION,
@@ -684,7 +832,12 @@ class MatDeckServer {
             this.clients.add(ws);
             const clientIp = req.socket.remoteAddress;
             ws._clientIp = clientIp; // usado pelo diagnóstico remoto de layout
-            console.log(`[WebSocket] Cliente conectado (${clientIp}). Total: ${this.clients.size} | ${(req.headers['user-agent'] || '?').slice(0, 160)}`);
+            const who = req.matdeckAuth || auth.classifyRequest(req, this.devices);
+            ws._role = who.role;
+            ws._deviceId = who.device ? who.device.id : null;
+            if (ws._deviceId) this.devices.touch(ws._deviceId, who.ip);
+            console.log(`[WebSocket] Cliente conectado (${clientIp}, ${who.device ? who.device.name : who.role}). Total: ${this.clients.size} | ${(req.headers['user-agent'] || '?').slice(0, 160)}`);
+            this.updateDemand();
 
             this.send(ws, { event: 'profileList', profiles: this.getProfileList(), current: this.currentProfileId });
             this.sendProfileToClient(ws, this.currentProfileId);
@@ -705,6 +858,9 @@ class MatDeckServer {
             ws.on('close', () => {
                 this.clients.delete(ws);
                 console.log(`[WebSocket] Cliente desconectado. Restantes: ${this.clients.size}`);
+                if (ws._deviceId && this.devices.get(ws._deviceId)) this.devices.touch(ws._deviceId);
+                if (!this.clients.size) this.releaseHeldKeys();
+                this.updateDemand();
             });
         });
 
@@ -722,6 +878,21 @@ class MatDeckServer {
         }, WS_HEARTBEAT_MS);
     }
 
+    /**
+     * Modo econômico: sem nenhum cliente conectado ninguém vê telemetria, ventoinhas ou Spotify, então os
+     * coletores passam a conferir só de vez em quando (e o nvidia-smi contínuo é encerrado). O primeiro
+     * cliente que conecta volta tudo para tempo real na hora.
+     */
+    updateDemand() {
+        const viewers = this.clients.size > 0;
+        if (viewers === this.hasViewers) return;
+        this.hasViewers = viewers;
+        for (const m of [this.hardwareMonitor, this.fanControl, this.spotify, this.mediaPlayers]) {
+            if (m && typeof m.setActive === 'function') { try { m.setActive(viewers); } catch (e) { console.warn('[MatDeck] Falha ao mudar o modo de coleta:', e.message); } }
+        }
+        console.log(`[MatDeck] ${viewers ? 'Cliente conectado: coleta em tempo real' : 'Sem clientes: coleta em modo econômico'}`);
+    }
+
     send(ws, obj) {
         if (ws && ws.readyState === 1) {
             try { ws.send(JSON.stringify(obj)); } catch (e) {}
@@ -735,6 +906,35 @@ class MatDeckServer {
                 try { client.send(msg); } catch (e) {}
             }
         }
+    }
+
+    /** Só para clientes deste PC (gerenciador): PINs e lista de dispositivos nunca vão para a rede. */
+    broadcastTrusted(obj) {
+        const msg = JSON.stringify(obj);
+        for (const client of this.clients) {
+            if (client._role === 'trusted' && client.readyState === 1) {
+                try { client.send(msg); } catch (e) {}
+            }
+        }
+    }
+
+    listDevices() {
+        const online = new Set();
+        for (const ws of this.clients) if (ws._deviceId) online.add(ws._deviceId);
+        return this.devices.list().map(d => ({ ...d, online: online.has(d.id) }));
+    }
+
+    setupPairing() {
+        this.pairing.on('change', () => this.broadcastTrusted({ event: 'pairing', pending: this.pairing.pending() }));
+        this.devices.on('change', () => this.broadcastTrusted({ event: 'devices', devices: this.listDevices() }));
+        // PINs vencidos somem do gerenciador mesmo sem ninguém chamar a API
+        this.pairingTimer = setInterval(() => this.pairing.purge(), 10000);
+    }
+
+    static sendManagerBlocked(res) {
+        res.status(403).type('html').send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MatDeck</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f1115;color:#e6e8ee;font:15px/1.5 system-ui,sans-serif}main{max-width:420px;padding:28px 32px;border:1px solid #2a2f3a;border-radius:12px;background:#171a21}h1{font-size:17px;margin:0 0 8px}p{margin:0;color:#aab1c0}code{color:#e6e8ee}</style></head>
+<body><main><h1>Gerenciador só no computador</h1><p>O gerenciador do MatDeck abre apenas no computador onde ele está rodando. Nele, acesse <code>http://localhost:${HTTP_PORT}/manage</code>. Neste dispositivo use o deck, na página inicial.</p></main></body></html>`);
     }
 
     broadcastProfileList() {
@@ -973,6 +1173,16 @@ class MatDeckServer {
                 if (st) { touched = true; return { ...key, ...st }; }
                 return key;
             }
+            if (key.actionId === 'discord:voice_room') {
+                const prof = this.profiles.get('discord');
+                if (prof) { touched = true; return { ...key, ...prof.roomKey(key) }; }
+                return key;
+            }
+            if (key.actionId === 'spotify:mixer') {
+                // Controles + volume do Spotify: estado do transporte mais o fader deitado do app "spotify"
+                touched = true;
+                return { ...key, ...(this.spotifyStateFor(key, def.id) || {}), ...MatDeckServer.mixerVolumeState(states.spotify, key) };
+            }
             if (key.actionId.startsWith('spotify:')) {
                 const st = this.spotifyStateFor(key, def.id);
                 if (st) { touched = true; return { ...key, ...st }; }
@@ -1141,6 +1351,7 @@ class MatDeckServer {
         const isHot = MatDeckServer.isHot;
         const BLUE = '#3B82F6', GREEN = '#10B981', PURPLE = '#A855F7', RED = '#EF4444', PINK = '#EC4899', LIME = '#22C55E';
         const na = (label, mode = 'bar') => ({ statLabel: label, statHead: 'n/d', statBig: 'n/d', statSub: 'indisponível', statPercent: 0, statColor: '#6B7280', statMode: mode, statHistory: null, statHistory2: null, statBars: null, statRows: null, title: `${label} n/d`, badge: null, active: false });
+        const pct = (v) => (v === null || v === undefined ? '--' : `${v}%`); // GPU Intel não expõe uso; VRAM usada pode faltar
         const base = { statHistory: null, statHistory2: null, statBars: null, statRows: null, statSub: null, statPercent: null, badge: null };
         switch (actionId) {
             case 'stats:cpu':
@@ -1151,15 +1362,15 @@ class MatDeckServer {
                 return { ...base, statLabel: 'CPU', statHead: `${cpu.usage}%`, statBig: null, statMode: 'cores', statBars: cpu.cores || [], statColor: isHot(cpu.temp) ? RED : BLUE, title: `CPU ${cpu.usage}%` };
             case 'stats:gpu':
                 return gpu.available
-                    ? { ...base, statLabel: 'GPU', statHead: `${gpu.vramUsedGB} GB`, statBig: `${gpu.usage}%`, statMode: 'graph', statHistory: history.gpuUsage, statHistoryMax: 100, statColor: isHot(gpu.temp) ? RED : GREEN, title: `GPU ${gpu.usage}%`, active: gpu.usage > 80 }
+                    ? { ...base, statLabel: 'GPU', statHead: fmtTemp(gpu.temp), statBig: pct(gpu.usage), statSub: gpu.usage === null ? 'uso não exposto pelo driver' : null, statMode: 'graph', statHistory: history.gpuUsage, statHistoryMax: 100, statColor: isHot(gpu.temp) ? RED : GREEN, title: `GPU ${pct(gpu.usage)}`, active: gpu.usage > 80 }
                     : na('GPU', 'graph');
             case 'stats:gpu_temp':
                 return gpu.available
-                    ? { ...base, statLabel: 'GPU', statHead: `${gpu.usage}%`, statBig: fmtTemp(gpu.temp), statSub: 'temperatura', statMode: 'graph', statHistory: history.gpuTemp, statHistoryMax: 100, statHistoryMin: 20, statColor: isHot(gpu.temp) ? RED : GREEN, title: 'GPU Temp', active: isHot(gpu.temp) }
+                    ? { ...base, statLabel: 'GPU', statHead: pct(gpu.usage), statBig: fmtTemp(gpu.temp), statSub: 'temperatura', statMode: 'graph', statHistory: history.gpuTemp, statHistoryMax: 100, statHistoryMin: 20, statColor: isHot(gpu.temp) ? RED : GREEN, title: 'GPU Temp', active: isHot(gpu.temp) }
                     : na('GPU', 'graph');
             case 'stats:vram':
                 return gpu.available
-                    ? { ...base, statLabel: 'VRAM', statHead: `${gpu.vramPercent}%`, statBig: `${gpu.vramUsedGB} GB`, statSub: `de ${gpu.vramTotalGB} GB`, statPercent: gpu.vramPercent, statMode: 'bar', statColor: GREEN, title: `VRAM ${gpu.vramUsedGB}G` }
+                    ? { ...base, statLabel: 'VRAM', statHead: pct(gpu.vramPercent), statBig: `${gpu.vramUsedGB} GB`, statSub: `de ${gpu.vramTotalGB} GB`, statPercent: gpu.vramPercent || 0, statMode: 'bar', statColor: GREEN, title: `VRAM ${gpu.vramUsedGB}G` }
                     : na('VRAM');
             case 'stats:ram':
                 return { ...base, statLabel: 'RAM', statHead: `${ram.percent}%`, statBig: `${ram.usedGB} GB`, statSub: `de ${ram.totalGB} GB`, statPercent: ram.percent, statMode: 'bar', statColor: ram.percent > 85 ? RED : PURPLE, title: `RAM ${ram.percent}%`, active: ram.percent > 85 };
@@ -1189,6 +1400,20 @@ class MatDeckServer {
      * para limpar); com `keepUserTitle`, o título dado pelo usuário é preservado, exceto nas ações
      * cujo título é o conteúdo (TITLE_IS_CONTENT).
      */
+    /** Parte "fader" do bloco spotify:mixer (mesmos campos do vol_slider:spotify). */
+    static mixerVolumeState(app, key) {
+        const base = { isSlider: true, sliderApp: 'spotify', sliderDir: 'h' };
+        if (!app) return { ...base, sliderValue: key.sliderValue !== undefined ? key.sliderValue : 80, badge: null };
+        return {
+            ...base,
+            sliderValue: app.volume,
+            badge: `${app.volume}%`,
+            badgeColor: app.muted ? '#7F1D1D' : '#3B82F6',
+            bgColor: app.muted ? '#DC2626' : key.bgColor,
+            borderColor: app.muted ? '#F87171' : undefined
+        };
+    }
+
     static mergeLiveState(st, key, keepUserTitle) {
         if (!st) return null;
         const out = {};
@@ -1219,6 +1444,26 @@ class MatDeckServer {
             if (this.playerLastSent.get(cacheKey) === sig) continue;
             this.playerLastSent.set(cacheKey, sig);
             this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: st });
+        }
+    }
+
+    /** Discord por IPC: estado real de mic/surdo chega por evento e vai para as teclas. */
+    setupDiscordRpc() {
+        const prof = this.profiles.get('discord');
+        this.discordRpc.on('voice', (v) => { if (prof) prof.applyVoice(v); });
+        this.discordRpc.on('change', () => { if (prof) prof.refreshKeys(); this.pushDiscordRoomKeys(); });
+        this.discordRpc.on('channel', () => this.pushDiscordRoomKeys());
+        this.discordRpc.start();
+    }
+
+    /** Atualiza os blocos "Sala de voz" do perfil atual (em qualquer aba, inclusive presets). */
+    pushDiscordRoomKeys() {
+        const prof = this.profiles.get('discord');
+        const currentDef = this.getProfileDefinition(this.currentProfileId);
+        if (!prof || !currentDef || !currentDef.keys) return;
+        for (const key of currentDef.keys) {
+            if (key.actionId !== 'discord:voice_room') continue;
+            this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: prof.roomKey(key) });
         }
     }
 
@@ -1293,7 +1538,7 @@ class MatDeckServer {
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
             for (const key of currentDef.keys) {
-                if (key.actionId === `vol_slider:${appId}`) {
+                if (key.actionId === `vol_slider:${appId}` || (key.actionId === 'spotify:mixer' && appId === 'spotify')) {
                     this.updateKey(this.currentProfileId, key.index, {
                         badge: `${volume}%`,
                         sliderValue: volume,
@@ -1311,18 +1556,52 @@ class MatDeckServer {
     // Auto-detecção de janela
     // ------------------------------------------------------------------
 
+    /** Sem nenhum tablet conectado, nenhuma tecla pode continuar "segurada" (push-to-talk preso). */
+    releaseHeldKeys() {
+        for (const prof of this.profiles.values()) {
+            if (typeof prof.releaseHeld !== 'function') continue;
+            try { prof.releaseHeld(); } catch (e) { console.warn('[Deck] Falha ao soltar tecla segurada:', e.message); }
+        }
+    }
+
     setAutoDetect(enabled) {
         this.autoDetectEnabled = !!enabled;
         this.windowDetector.setEnabled(this.autoDetectEnabled);
+        if ((this.config.get('ui') || {}).autoDetect !== this.autoDetectEnabled) this.config.set('ui', { autoDetect: this.autoDetectEnabled });
         this.broadcast({ event: 'autoDetectStatus', active: this.autoDetectEnabled });
+    }
+
+    /** Perfil que o Auto-Perfil ativa para um app detectado: o escolhido em Ajustes, senão o de mesmo nome; null = não trocar. */
+    resolveAutoProfile(app) {
+        if (!app) return null;
+        const map = (this.config.get('ui') || {}).autoProfiles || {};
+        const chosen = typeof map[app] === 'string' ? map[app].trim() : '';
+        if (chosen === 'none') return null;
+        const target = chosen || app;
+        if (!this.getProfileDefinition(target) || this.isProfileHidden(target)) return null;
+        return target;
+    }
+
+    /** Apps reconhecidos pelo detector com o perfil que cada um ativa hoje (para Ajustes > Auto-Perfil). */
+    listAutoDetectApps() {
+        const map = (this.config.get('ui') || {}).autoProfiles || {};
+        return WindowDetector.DETECTABLE_APPS.map(a => ({
+            id: a.id,
+            label: a.label,
+            choice: typeof map[a.id] === 'string' ? map[a.id] : '',
+            defaultAvailable: !!this.getProfileDefinition(a.id) && !this.isProfileHidden(a.id),
+            resolved: this.resolveAutoProfile(a.id)
+        }));
     }
 
     setupWindowDetector() {
         this.windowDetector.setEnabled(this.autoDetectEnabled);
         this.windowDetector.on('windowChanged', (info) => {
-            if (this.autoDetectEnabled && info.profile && info.profile !== this.currentProfileId && !this.isProfileHidden(info.profile)) {
-                console.log(`[Auto-Detect] Janela ativa: "${info.title}" -> Alternando para "${info.profile}"`);
-                this.switchProfile(info.profile);
+            if (!this.autoDetectEnabled || !info.profile) return;
+            const target = this.resolveAutoProfile(info.profile);
+            if (target && target !== this.currentProfileId) {
+                console.log(`[Auto-Detect] Janela ativa: "${info.title}" (${info.profile}) -> Alternando para "${target}"`);
+                this.switchProfile(target);
             }
         });
         this.windowDetector.start();
@@ -1403,6 +1682,7 @@ class MatDeckServer {
             const trayStopped = this.tray ? this.tray.stop() : Promise.resolve();
             clearInterval(this.heartbeatTimer);
             clearInterval(this.udpTimer);
+            clearInterval(this.pairingTimer);
             this.hardwareMonitor.stop();
             this.audioMixer.stop();
             this.spotify.stop();
@@ -1415,8 +1695,8 @@ class MatDeckServer {
             try { this.udpSocket && this.udpSocket.close(); } catch (e) {}
             // Plugins Elgato: espera saírem (SIGKILL após 1 s) para não ficarem órfãos
             try { await Promise.all([this.elgatoBridge.stop(), trayStopped]); } catch (e) {}
-            this.server.close(() => process.exit(0));
-            setTimeout(() => process.exit(0), 1500).unref();
+            this.server.close(() => process.exit(process.exitCode || 0));
+            setTimeout(() => process.exit(process.exitCode || 0), 1500).unref();
         };
         process.on('SIGINT', shutdown);
         process.on('SIGTERM', shutdown);
