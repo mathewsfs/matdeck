@@ -10,11 +10,17 @@ const DEFAULTS = {
         clientQueryPort: 25639,
         apiKey: '',              // concedida pelo TS5/TS6 após o usuário autorizar
         clientQueryApiKey: '',   // Tools > Options > Addons > ClientQuery (TS3)
-        serverAddress: 'infocrivo.com:9987', // host[:porta] para os links ts3server:// de troca de canal (a API não expõe o host)
+        serverAddress: '',       // host[:porta] do seu servidor TeamSpeak, para os links ts3server:// (a API não expõe o host)
         pttMode: 'toggle'        // 'toggle' = um toque liga, outro desliga | 'hold' = segurar para falar
     },
     discord: {
-        pttKey: 'ctrl+shift+p'   // precisa ser o mesmo atalho configurado no Discord
+        pttKey: 'ctrl+shift+p',  // reserva por teclado: precisa ser o mesmo atalho configurado no Discord
+        clientId: '',            // aplicativo criado em discord.com/developers (controle nativo por IPC)
+        clientSecret: '',
+        redirectUri: 'http://localhost',
+        accessToken: '',         // preenchidos pelo MatDeck após a autorização
+        refreshToken: '',
+        tokenExpiresAt: 0
     },
     meet: {
         allowCloseTab: false
@@ -44,9 +50,14 @@ const DEFAULTS = {
         minPercent: 20,          // piso de segurança do fader
         restore: {}              // perfil/curva de cada canal antes do controle manual
     },
+    server: {
+        allowedHosts: []         // nomes/IPs extras aceitos no cabeçalho Host (localhost, IPs locais e o hostname já valem)
+    },
     ui: {
         hiddenProfiles: [],      // ids de perfis que não aparecem no tablet (abas, ciclo ◀ ▶, auto-perfil)
         removedProfiles: [],     // abas embutidas excluídas pelo usuário (somem do tablet e do gerenciador; restauráveis)
+        autoDetect: false,       // Auto-Perfil (troca pela janela em foco) ligado; nasce desligado e lembra o último estado
+        autoProfiles: {},        // app detectado -> perfil a ativar ('' = o perfil de mesmo nome, 'none' = não trocar)
         tray: true               // ícone na bandeja do sistema enquanto o servidor roda (scripts/matdeck-tray.py)
     }
 };

@@ -8,10 +8,14 @@ import android.content.SharedPreferences;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.util.DisplayMetrics;
+import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -34,6 +38,8 @@ public class MainActivity extends Activity implements
     private static final String PREFS_NAME = "MatDeckPrefs";
     private static final String KEY_SERVER_IP = "server_ip";
     private static final String KEY_SERVER_PORT = "server_port";
+    private static final String KEY_DEVICE_TOKEN = "device_token";
+    private static final long PAIRING_RETRY_MS = 5000;
 
     private View headerBar;
     private View statusDot;
@@ -54,6 +60,11 @@ public class MainActivity extends Activity implements
 
     private DeckGridView gridView;
     private DeckSocketClient socketClient;
+    // Emparelhamento por PIN (o PIN aparece no gerenciador do PC)
+    private String deviceToken = "";
+    private boolean pairingActive = false;
+    private String pairingSessionId;
+    private AlertDialog pinDialog;
     private NetworkDiscovery discovery;
     private SharedPreferences prefs;
 
@@ -88,6 +99,7 @@ public class MainActivity extends Activity implements
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         currentServerIp = prefs.getString(KEY_SERVER_IP, "");
         currentServerPort = prefs.getInt(KEY_SERVER_PORT, 8888);
+        deviceToken = prefs.getString(KEY_DEVICE_TOKEN, "");
 
         initViews();
         applyAdaptiveScreenMetrics();
@@ -327,7 +339,7 @@ public class MainActivity extends Activity implements
         if (socketClient != null) {
             socketClient.disconnect();
         }
-        socketClient = new DeckSocketClient(ip, port, this);
+        socketClient = new DeckSocketClient(ip, port, deviceToken.isEmpty() ? null : deviceToken, this);
         socketClient.connect();
     }
 
@@ -549,6 +561,154 @@ public class MainActivity extends Activity implements
     }
 
     @Override
+    public void onUnauthorized() {
+        // Sem token, ou o acesso foi removido no gerenciador: esquece o token e pede um PIN novo
+        deviceToken = "";
+        prefs.edit().remove(KEY_DEVICE_TOKEN).commit();
+        updateStatus(false, "Aguardando PIN do PC");
+        requestPairingPin();
+    }
+
+    // --- Emparelhamento por PIN ---
+
+    private void requestPairingPin() {
+        if (pinDialog != null && pinDialog.isShowing()) return;
+        pairingActive = true;
+        final String host = currentServerIp;
+        final int port = currentServerPort;
+        PairingClient.start(host, port, Build.MODEL, new PairingClient.Callback() {
+            @Override
+            public void onResult(int status, JSONObject body) {
+                if (!pairingActive || !host.equals(currentServerIp)) return;
+                if (status == 200 && body.has("id")) {
+                    pairingSessionId = body.optString("id");
+                    showPinDialog(host, port);
+                } else if (status == 429) {
+                    long wait = Math.max(1000, body.optLong("retryAfterMs", 30000));
+                    updateStatus(false, "Muitas tentativas; novo PIN em " + Math.round(wait / 1000.0) + " s");
+                    schedulePairingRetry(wait + 300);
+                } else {
+                    updateStatus(false, "PC não deu um PIN (" + status + "); tentando de novo");
+                    schedulePairingRetry(PAIRING_RETRY_MS);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception error) {
+                if (!pairingActive) return;
+                updateStatus(false, "Sem resposta do PC para o PIN; tentando de novo");
+                schedulePairingRetry(PAIRING_RETRY_MS);
+            }
+        });
+    }
+
+    private void schedulePairingRetry(long delayMs) {
+        statusText.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (pairingActive) requestPairingPin();
+            }
+        }, delayMs);
+    }
+
+    private void showPinDialog(final String host, final int port) {
+        if (pinDialog != null && pinDialog.isShowing()) return;
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setFilters(new InputFilter[]{ new InputFilter.LengthFilter(4) });
+        input.setHint("PIN de 4 dígitos");
+        input.setGravity(Gravity.CENTER);
+        input.setTextSize(28);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(30, 20, 30, 20);
+        layout.addView(input);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Conectar ao PC");
+        builder.setMessage("Abra o gerenciador do MatDeck no computador: o PIN deste aparelho aparece lá. Ele vale por 2 minutos.");
+        builder.setView(layout);
+        builder.setCancelable(false);
+        builder.setPositiveButton("Conectar", null); // listener abaixo, para o diálogo não fechar com PIN errado
+        builder.setNegativeButton("Cancelar", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                pairingActive = false;
+                pinDialog = null;
+                updateStatus(false, "Sem acesso: toque em ⚙ para conectar de novo");
+            }
+        });
+        pinDialog = builder.create();
+        pinDialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface dialog) {
+                pinDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        submitPin(host, port, input);
+                    }
+                });
+            }
+        });
+        pinDialog.show();
+    }
+
+    private void submitPin(final String host, final int port, final EditText input) {
+        final String pin = input.getText().toString().trim();
+        if (pin.length() != 4) {
+            Toast.makeText(this, "Digite os 4 dígitos do PIN", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final Button button = pinDialog != null ? pinDialog.getButton(AlertDialog.BUTTON_POSITIVE) : null;
+        if (button != null) button.setEnabled(false);
+        PairingClient.verify(host, port, pairingSessionId, pin, new PairingClient.Callback() {
+            @Override
+            public void onResult(int status, JSONObject body) {
+                if (button != null) button.setEnabled(true);
+                if (status == 200 && body.has("token")) {
+                    deviceToken = body.optString("token");
+                    prefs.edit().putString(KEY_DEVICE_TOKEN, deviceToken).commit();
+                    pairingActive = false;
+                    dismissPinDialog();
+                    Toast.makeText(MainActivity.this, "Aparelho emparelhado", Toast.LENGTH_SHORT).show();
+                    connectToServer(host, port);
+                } else if (status == 401) {
+                    input.setText("");
+                    Toast.makeText(MainActivity.this, "PIN incorreto (" + body.optInt("attemptsLeft", 0) + " tentativa(s) restante(s))", Toast.LENGTH_SHORT).show();
+                } else if (status == 410) {
+                    dismissPinDialog();
+                    Toast.makeText(MainActivity.this, "Esse PIN venceu; pedindo outro", Toast.LENGTH_SHORT).show();
+                    requestPairingPin();
+                } else if (status == 429) {
+                    dismissPinDialog();
+                    long wait = Math.max(1000, body.optLong("retryAfterMs", 30000));
+                    updateStatus(false, "Muitas tentativas; novo PIN em " + Math.round(wait / 1000.0) + " s");
+                    schedulePairingRetry(wait + 300);
+                } else {
+                    Toast.makeText(MainActivity.this, body.optString("error", "Não foi possível conferir o PIN"), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception error) {
+                if (button != null) button.setEnabled(true);
+                Toast.makeText(MainActivity.this, "Sem resposta do PC", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void dismissPinDialog() {
+        if (pinDialog != null) {
+            try {
+                pinDialog.dismiss();
+            } catch (Exception ignored) {}
+            pinDialog = null;
+        }
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (discovery != null) {
@@ -557,5 +717,7 @@ public class MainActivity extends Activity implements
         if (socketClient != null) {
             socketClient.disconnect();
         }
+        pairingActive = false;
+        dismissPinDialog();
     }
 }

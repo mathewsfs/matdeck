@@ -30,11 +30,15 @@ public class DeckSocketClient {
         void onMessage(String text);
         void onDisconnected(String reason);
         void onError(Throwable error);
+        /** O servidor recusou o handshake com 401: este aparelho precisa emparelhar por PIN. */
+        void onUnauthorized();
     }
 
     private final String host;
     private final int port;
     private final SocketListener listener;
+    /** Token de dispositivo emparelhado (cabeçalho X-MatDeck-Token); null enquanto não houver. */
+    private final String token;
     private Socket socket;
     private OutputStream out;
     private InputStream in;
@@ -47,8 +51,13 @@ public class DeckSocketClient {
     private final SecureRandom random = new SecureRandom();
 
     public DeckSocketClient(String host, int port, SocketListener listener) {
+        this(host, port, null, listener);
+    }
+
+    public DeckSocketClient(String host, int port, String token, SocketListener listener) {
         this.host = host;
         this.port = port;
+        this.token = token;
         this.listener = listener;
     }
 
@@ -156,7 +165,9 @@ public class DeckSocketClient {
                 + "Upgrade: websocket\r\n"
                 + "Connection: Upgrade\r\n"
                 + "Sec-WebSocket-Key: " + secKey + "\r\n"
-                + "Sec-WebSocket-Version: 13\r\n\r\n";
+                + "Sec-WebSocket-Version: 13\r\n"
+                + (token != null && !token.isEmpty() ? "X-MatDeck-Token: " + token + "\r\n" : "")
+                + "\r\n";
 
         out.write(request.getBytes("UTF-8"));
         out.flush();
@@ -178,6 +189,13 @@ public class DeckSocketClient {
         }
 
         String responseHeaders = new String(buffer.toByteArray(), "UTF-8");
+        if (responseHeaders.startsWith("HTTP/1.1 401") || responseHeaders.contains(" 401 ")) {
+            // Sem token válido: não adianta insistir; a Activity pede o PIN e reconecta com o token novo
+            Log.w(TAG, "Server requires pairing (401)");
+            shouldRun = false;
+            notifyUnauthorized();
+            return false;
+        }
         return responseHeaders.startsWith("HTTP/1.1 101") || responseHeaders.contains(" 101 ");
     }
 
@@ -345,6 +363,15 @@ public class DeckSocketClient {
             @Override
             public void run() {
                 if (listener != null) listener.onDisconnected(reason);
+            }
+        });
+    }
+
+    private void notifyUnauthorized() {
+        mainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                if (listener != null) listener.onUnauthorized();
             }
         });
     }
