@@ -241,6 +241,11 @@
                                 <svg class="ico" aria-hidden="true"><use href="#i-chevron"/></svg>
                             </button>
                         </div>
+                        <label class="switch icon-fill-row" id="icon-fill-row" data-tip="A imagem ocupa a tecla inteira (bom para GIFs e fotos)" hidden>
+                            <input type="checkbox" id="f-icon-fill">
+                            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                            <span class="switch-label">Imagem preenche a tecla</span>
+                        </label>
                         <div class="icon-scale" id="icon-scale-row" hidden>
                             <input type="range" id="f-icon-scale" min="50" max="200" step="10" value="100" aria-label="Tamanho do ícone (%)">
                             <output id="f-icon-scale-out" for="f-icon-scale">100%</output>
@@ -304,6 +309,34 @@
                         <span>Aplicativo</span>
                         <select id="f-vol-app" class="form-select"></select>
                     </label>
+                    <label class="field" id="param-slider-dir" hidden>
+                        <span>Orientação do fader</span>
+                        <select id="f-slider-dir" class="form-select">
+                            <option value="v">Em pé (arrasta para cima e para baixo)</option>
+                            <option value="h">Deitado (arrasta para o lado)</option>
+                        </select>
+                    </label>
+                    <div class="field" id="param-stat" hidden>
+                        <span>Telemetria</span>
+                        <div class="icon-scale" data-tip="Tamanho dos textos deste bloco em relação ao padrão">
+                            <span class="span-hint">Fonte</span>
+                            <input type="range" id="f-stat-font" min="-50" max="150" step="5" value="0" aria-label="Tamanho da fonte do bloco (%)">
+                            <output id="f-stat-font-out" for="f-stat-font">0%</output>
+                        </div>
+                        <div class="span-ctl stat-ctl">
+                            <select id="f-stat-chart" class="form-select compact" aria-label="Tipo de gráfico">
+                                <option value="area">Área</option>
+                                <option value="line">Linha</option>
+                                <option value="bars">Barras</option>
+                                <option value="none">Sem gráfico</option>
+                            </select>
+                        </div>
+                        <label class="switch stat-swap" id="stat-swap-row" data-tip="Troca o número grande pelo valor pequeno do cabeçalho (ex.: temperatura grande, uso pequeno)">
+                            <input type="checkbox" id="f-stat-swap">
+                            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+                            <span class="switch-label">Inverter destaque</span>
+                        </label>
+                    </div>
                     <div class="field" id="param-span" hidden>
                         <span>Tamanho <span class="label-opt">(colunas × linhas)</span></span>
                         <div class="span-ctl">
@@ -347,7 +380,9 @@
             <div class="popover icon-pop" id="icon-pop" role="dialog" aria-label="Escolher ícone" hidden>
                 <div class="icon-pop-head">
                     <input type="search" id="icon-search" class="form-input" placeholder="Filtrar ícones" aria-label="Filtrar ícones" autocomplete="off">
+                    <button type="button" class="btn btn-secondary btn-sm" id="icon-upload" data-tip="Imagem ou GIF do seu computador (GIF, PNG, JPEG ou WebP, até 20 MB)">Imagem/GIF…</button>
                     <button type="button" class="btn btn-secondary btn-sm" id="icon-none">Sem ícone</button>
+                    <input type="file" id="icon-file" accept="image/gif,image/png,image/jpeg,image/webp" hidden>
                 </div>
                 <div class="icon-grid" id="icon-grid" role="listbox" aria-label="Ícones"></div>
             </div>
@@ -373,6 +408,18 @@
                 </div>
 
                 <div class="settings-sections" id="settings-sections" hidden>
+                    <section class="settings-section">
+                        <h3>Dispositivos (acesso ao deck)</h3>
+                        <p class="settings-note">Este gerenciador só abre no computador onde o MatDeck está rodando. Um tablet ou celular que abrir o deck pela rede pede um <strong>PIN de 4 dígitos</strong>, que aparece no canto desta tela; digitado uma vez, o aparelho fica lembrado. Remova um aparelho para que ele volte a pedir PIN.</p>
+                        <div class="devices-list" id="devices-list"></div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Auto-Perfil (troca pela janela em foco)</h3>
+                        <p class="settings-note">O botão <strong>AUTO</strong> da barra liga e desliga a troca automática. O MatDeck nasce com ele desligado e lembra o último estado. Abaixo, escolha o perfil que cada aplicativo ativa quando sua janela ganha o foco, ou "Não trocar" para ignorá-lo.</p>
+                        <div class="settings-row auto-profiles" id="auto-profiles-rows"></div>
+                    </section>
+
                     <section class="settings-section">
                         <h3>OBS Studio</h3>
                         <div class="settings-row">
@@ -450,10 +497,32 @@
 
                     <section class="settings-section">
                         <h3>Discord</h3>
+                        <p class="hint">Controle nativo (mic, surdo e PTT funcionam com o Discord na bandeja): crie um aplicativo em <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">discord.com/developers/applications</a>, em <strong>OAuth2</strong> adicione o redirect <code>http://localhost</code> e copie o Client ID e o Client Secret para cá. Depois de salvar, aceite a janela que o Discord abre.</p>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-discord-client-id">Client ID</label>
+                                <input type="text" id="cfg-discord-client-id" class="form-input mono" data-path="discord.clientId" autocomplete="off" spellcheck="false" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-discord-client-secret">Client Secret</label>
+                                <div class="input-with-action">
+                                    <input type="password" id="cfg-discord-client-secret" class="form-input" data-path="discord.clientSecret" autocomplete="off" spellcheck="false">
+                                    <button type="button" class="icon-btn btn-reveal" data-reveal="cfg-discord-client-secret" aria-label="Mostrar chave" aria-pressed="false">
+                                        <svg class="ico" aria-hidden="true"><use href="#i-eye"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="control-group">
-                            <label for="cfg-discord-ptt">Atalho de Push-to-Talk / Mudo</label>
+                            <div class="input-with-action">
+                                <span class="hint" id="discord-rpc-status" aria-live="polite">Sem Client ID: controle por atalhos de teclado.</span>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-discord-authorize" data-tip="Abre de novo a janela de autorização no Discord">Autorizar</button>
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label for="cfg-discord-ptt">Atalho de Push-to-Talk / Mudo <span class="label-opt">(reserva por teclado)</span></label>
                             <input type="text" id="cfg-discord-ptt" class="form-input mono" data-path="discord.pttKey" placeholder="ctrl+shift+p" autocomplete="off" spellcheck="false">
-                            <p class="hint">Configure o mesmo atalho em Discord &gt; Configurações &gt; Teclas de atalho.</p>
+                            <p class="hint">Usado só sem a API ou com o Discord em modo Push to Talk. Configure o mesmo atalho em Discord &gt; Configurações &gt; Teclas de atalho.</p>
                         </div>
                     </section>
 
@@ -577,6 +646,9 @@
 
     <!-- Toasts -->
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+    <!-- Pedidos de conexão de dispositivos (PIN) -->
+    <div class="pairing-cards" id="pairing-cards" aria-live="polite"></div>
 
     <script src="manage.js?v=1.3.1"></script>
 </body>

@@ -26,13 +26,16 @@ const state = {
     liveKeys: {},          // overlay de estado vivo (apenas do perfil ativo): index -> key parcial
     armed: null,           // ação "armada" para atribuição por toque
     collapsed: new Set(),  // grupos recolhidos
+    seenGroups: new Set(), // grupos já vistos: um grupo novo nasce recolhido
     dirty: false,
     saving: false,
     saveTimer: null,
     saveState: 'idle',
     ws: null,
     wsTimer: null,
-    autoDetect: false
+    autoDetect: false,
+    pending: [],           // pedidos de conexão aguardando PIN [{id,name,ip,pin,expiresAt}]
+    devices: []            // dispositivos emparelhados [{id,name,ip,lastSeenAt,online}]
 };
 
 // --------------------------------------------------------------------------
@@ -725,7 +728,13 @@ function renderActions() {
     const q = actionSearch.value.trim().toLowerCase();
     actionGroupsEl.textContent = '';
     let shown = 0;
-    for (const g of state.catalog.groups || []) {
+    const groups = state.catalog.groups || [];
+    for (const g of groups) {
+        // Painel abre com tudo recolhido; só expande o que o usuário abrir (a busca expande temporariamente)
+        if (!state.seenGroups.has(g.id)) { state.seenGroups.add(g.id); state.collapsed.add(g.id); }
+    }
+    $('btn-collapse-all').textContent = groups.length && groups.every(g => state.collapsed.has(g.id)) ? 'Expandir tudo' : 'Recolher tudo';
+    for (const g of groups) {
         const actions = (g.actions || []).filter(a => !q || `${a.label} ${a.id} ${a.hint || ''} ${g.label}`.toLowerCase().includes(q));
         if (!actions.length) continue;
         shown += actions.length;
@@ -790,7 +799,6 @@ $('btn-collapse-all').addEventListener('click', () => {
     const all = (state.catalog.groups || []).map(g => g.id);
     const allCollapsed = all.every(id => state.collapsed.has(id));
     state.collapsed = allCollapsed ? new Set() : new Set(all);
-    $('btn-collapse-all').textContent = allCollapsed ? 'Recolher tudo' : 'Expandir tudo';
     renderActions();
 });
 
@@ -959,7 +967,16 @@ new ResizeObserver(() => fitKeys()).observe(deviceWrap);
 function isMutedKey(k) {
     return k.bgColor === '#DC2626' || k.badge === 'MUDO' || k.badge === 'MUTADO' || !!(k.title && k.title.toUpperCase().includes('MUTADO'));
 }
-function isSliderKey(k) { return !!(k.isSlider || (k.actionId && k.actionId.startsWith('vol_slider:'))); }
+/** Escala de fonte do bloco de telemetria: número (0.5 a 2.5); 's'/'l' são o formato antigo. */
+function statFontScale(k) {
+    const v = k && k.statFont;
+    if (v === 's') return 0.8;
+    if (v === 'l') return 1.25;
+    const n = Number(v);
+    return n > 0 ? Math.min(2.5, Math.max(0.5, n)) : 1;
+}
+function isSliderKey(k) { return !!(k.isSlider || (k.actionId && (k.actionId.startsWith('vol_slider:') || k.actionId === 'spotify:mixer'))); }
+function isWideKey(k) { return !!k && isSliderKey(k) && (k.sliderDir === 'h' || k.actionId === 'spotify:mixer'); }
 /** Tamanho da tecla em células {cols, rows}, limitado à grade. `tall` (legado) = fader de 1x2. */
 function spanOf(k, p = editingProfile()) {
     if (!k || !p) return { cols: 1, rows: 1 };
@@ -970,7 +987,7 @@ function spanOf(k, p = editingProfile()) {
 }
 /** Fader alto e estreito: 1 coluna por 2+ linhas. */
 function isTallKey(k, p = editingProfile()) {
-    if (!k || !isSliderKey(k)) return false;
+    if (!k || !isSliderKey(k) || isWideKey(k)) return false;
     const sp = spanOf(k, p);
     return sp.rows > 1 && sp.cols === 1;
 }
@@ -1009,7 +1026,7 @@ function coveredIndexes(p = editingProfile()) {
     return covered;
 }
 function isEmptyKey(k) { return !(k.title || k.actionId || k.icon || k.badge); }
-function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing' || k.actionId === 'player:panel')); }
+function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing' || k.actionId === 'player:panel' || k.actionId === 'discord:voice_room')); }
 /** Escapa texto para innerHTML. */
 function escHtml(s) {
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1034,8 +1051,22 @@ function statChartSvg(cfg, prefix) {
     const c1 = cfg.statColor || '#3B82F6';
     const c2 = cfg.statColor2 || '#EC4899';
     let out = `<svg class="${prefix}-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`;
+    const kind = cfg.statChart === 'line' || cfg.statChart === 'bars' ? cfg.statChart : 'area';
+    if (kind === 'bars') {
+        const bars = (hist, color, opacity) => {
+            const n = hist.length;
+            if (!n) return '';
+            const step = W / N;
+            const bw = Math.max(0.6, step * 0.7);
+            return hist.map((v, i) => {
+                const bh = Math.min(H, Math.max(0, (v - min) / span) * H);
+                return `<rect x="${(W - (n - i) * step + (step - bw) / 2).toFixed(2)}" y="${(H - bh).toFixed(2)}" width="${bw.toFixed(2)}" height="${Math.max(0.5, bh).toFixed(2)}" fill="${color}" fill-opacity="${opacity}"/>`;
+            }).join('');
+        };
+        return out + bars(h1, c1, h2.length ? 0.9 : 1) + bars(h2, c2, 0.75) + '</svg>';
+    }
     const l1 = line(h1);
-    if (l1) out += `<polygon points="${l1.xStart},${H} ${l1.pts} ${W},${H}" fill="${c1}" fill-opacity="0.28"/><polyline points="${l1.pts}" fill="none" stroke="${c1}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    if (l1) out += (kind === 'area' ? `<polygon points="${l1.xStart},${H} ${l1.pts} ${W},${H}" fill="${c1}" fill-opacity="0.28"/>` : '') + `<polyline points="${l1.pts}" fill="none" stroke="${c1}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
     const l2 = line(h2);
     if (l2) out += `<polyline points="${l2.pts}" fill="none" stroke="${c2}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
     return out + '</svg>';
@@ -1067,6 +1098,7 @@ function statBarsSvg(cfg, prefix) {
 function statInnerHtml(cfg, prefix) {
     const mode = cfg.statMode || (Array.isArray(cfg.statHistory) ? 'graph' : 'bar');
     const color = cfg.statColor || cfg.badgeColor || '';
+    if (cfg.statSwap && cfg.statBig !== undefined && cfg.statBig !== null && cfg.statHead) cfg = { ...cfg, statBig: cfg.statHead, statHead: cfg.statBig };
     if (mode === 'media') {
         const pct = Math.max(0, Math.min(100, Number(cfg.statPercent) || 0));
         return `<div class="${prefix}-cover">${cfg.statImage ? `<img src="${escHtml(cfg.statImage)}" alt="">` : ''}</div><div class="${prefix}-media-shade"></div>` +
@@ -1090,7 +1122,7 @@ function statInnerHtml(cfg, prefix) {
         html += `<div class="${prefix}-big">${escHtml(cfg.statValue)}</div>`;
     }
     if (cfg.statSub && mode !== 'dual') html += `<div class="${prefix}-sub" style="color:${escHtml(color)}">${escHtml(cfg.statSub)}</div>`;
-    if (mode === 'graph' || mode === 'dual') html += `<div class="${prefix}-chart">${statChartSvg(cfg, prefix)}</div>`;
+    if ((mode === 'graph' || mode === 'dual') && cfg.statChart !== 'none') html += `<div class="${prefix}-chart">${statChartSvg(cfg, prefix)}</div>`;
     else if (mode === 'cores') html += `<div class="${prefix}-chart ${prefix}-chart-tall">${statBarsSvg(cfg, prefix)}</div>`;
     else if (cfg.statPercent !== undefined && cfg.statPercent !== null) html += `<div class="${prefix}-bar"><i style="width:${Math.max(0, Math.min(100, Number(cfg.statPercent) || 0))}%;background:${escHtml(color)}"></i></div>`;
     return html;
@@ -1110,7 +1142,7 @@ function buildKeyNode(k, { preview = false } = {}) {
     const empty = isEmptyKey(k);
     const tall = !preview && isTallKey(k);
     const el = h('div', {
-        class: 'mkey' + (empty ? ' is-empty' : '') + (k.active && !preview ? ' is-live-active' : '') + (muted ? ' is-muted' : '') + (tall ? ' is-tall' : '') + (k.imageFill && k.icon ? ' is-image-fill' : ''),
+        class: 'mkey' + (empty ? ' is-empty' : '') + (k.active && !preview ? ' is-live-active' : '') + (muted ? ' is-muted' : '') + (tall ? ' is-tall' : '') + (isWideKey(k) ? ' is-wide' : '') + (k.actionId === 'spotify:mixer' ? ' is-mixer' : '') + (k.imageFill && k.icon ? ' is-image-fill' : ''),
         role: preview ? 'img' : 'gridcell',
         'aria-label': preview ? 'Pré-visualização da tecla' : `Tecla ${k.index + 1}${k.title ? ': ' + k.title : ' (vazia)'}`
     });
@@ -1121,19 +1153,24 @@ function buildKeyNode(k, { preview = false } = {}) {
     if (Number(k.iconScale) && Number(k.iconScale) !== 1) el.style.setProperty('--icon-scale', String(Number(k.iconScale)));
     if (isSliderKey(k)) {
         const val = k.sliderValue !== undefined ? k.sliderValue : 80;
-        const fill = h('div', { class: 'mkey-fill', style: `height:${clamp(val, 0, 100)}%` });
-        el.appendChild(tall ? h('div', { class: 'mkey-track' }, fill) : fill);
+        const wide = isWideKey(k);
+        const fill = h('div', { class: 'mkey-fill', style: wide ? `width:${clamp(val, 0, 100)}%` : `height:${clamp(val, 0, 100)}%` });
+        el.appendChild(wide ? h('div', { class: 'mkey-track is-h' }, fill) : (tall ? h('div', { class: 'mkey-track' }, fill) : fill));
         if ((k.sliderApp || (k.actionId || '').replace('vol_slider:', '')) === 'fans') el.appendChild(h('span', { class: 'mkey-auto-pill' + (k.autoMode ? ' is-on' : ''), text: 'AUTO' }));
     }
     if (isStatKey(k)) {
         el.classList.add('is-stat');
         const media = k.statMode === 'media' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing';
         const ai = !k.statMode && k.actionId && k.actionId.startsWith('ai:');
+        if (!k.statMode && k.actionId === 'discord:voice_room' && k.statRows === undefined) {
+            k = { ...k, statMode: 'meters', statLabel: 'Sala de voz', statHead: '3 na sala', statRows: [{ k: 'Você', sub: 'falando', v: '', pct: 100, color: '#22C55E' }, { k: 'Fulano', sub: '', v: '', pct: 0, color: '#374151' }, { k: 'Beltrano', sub: 'mudo', v: '', pct: 0, color: '#374151' }] };
+        }
         if (ai && k.statBig === undefined && k.statRows === undefined) {
             const lbl = k.actionId.startsWith('ai:codex') ? 'Codex' : 'Claude';
             k = /_/.test(k.actionId) ? { ...k, statMode: 'bar', statLabel: lbl, statHead: '', statBig: '--', statSub: 'ao vivo no tablet', statPercent: 30 } : { ...k, statMode: 'meters', statLabel: lbl, statHead: '', statRows: [{ k: '5 h', v: '--', sub: 'ao vivo no tablet', pct: 30 }, { k: 'semana', v: '--', sub: '', pct: 50 }] };
         }
         const box = h('div', { class: `mkey-stat mode-${k.statMode || (media ? 'media' : 'bar')}${k.statImage ? ' has-cover' : ''}` });
+        if (statFontScale(k) !== 1) box.style.setProperty('--stat-font', String(statFontScale(k)));
         const cfg = k.statBig === undefined && k.statValue === undefined
             ? (media ? { ...k, statMode: 'media', statHead: '', statBig: 'Tocando agora', statSub: 'ao vivo no tablet', statPercent: 35 } : { ...k, statHead: '', statBig: '--', statSub: 'ao vivo no tablet' })
             : k;
@@ -1144,7 +1181,7 @@ function buildKeyNode(k, { preview = false } = {}) {
         return el;
     }
     el.appendChild(h('span', { class: 'mkey-num', text: String(k.index + 1) }));
-    if (k.actionId === 'spotify:transport' || k.actionId === 'player:transport') {
+    if (k.actionId === 'spotify:transport' || k.actionId === 'player:transport' || k.actionId === 'spotify:mixer') {
         el.classList.add('is-transport');
         const bar = h('div', { class: 'mkey-transport' });
         for (const name of ['prev', k.transportPlaying ? 'pause' : 'play', 'next']) {
@@ -1414,7 +1451,7 @@ function renderInspector() {
     if (def.icon) {
         thumb.appendChild(h('img', { src: def.icon, alt: '' }));
         const name = Object.keys(state.icons).find(n => state.icons[n] === def.icon);
-        $('f-icon-name').textContent = name || 'Ícone personalizado';
+        $('f-icon-name').textContent = name || (/^\/media\//.test(def.icon) ? `Imagem própria (${def.icon.split('.').pop().toUpperCase()})` : 'Ícone personalizado');
     } else {
         thumb.appendChild(svgIcon('i-image'));
         $('f-icon-name').textContent = 'Sem ícone';
@@ -1423,6 +1460,10 @@ function renderInspector() {
     const scaleRow = $('icon-scale-row');
     const showScale = !!def.icon && !def.imageFill && !isStatKey(def);
     setHidden(scaleRow, !showScale);
+    // Imagem ocupando a tecla inteira (teclas de plugin já vêm assim; o usuário decide para as demais)
+    const showFill = !!def.icon && !isStatKey(def) && !(def.actionId || '').startsWith('plugin:');
+    setHidden($('icon-fill-row'), !showFill);
+    if (showFill) $('f-icon-fill').checked = !!def.imageFill;
     if (showScale) {
         const pct = Math.round((Number(def.iconScale) || 1) * 100);
         $('f-icon-scale').value = String(Math.min(200, Math.max(50, pct)));
@@ -1462,6 +1503,24 @@ function renderInspector() {
     }
     setHidden($('param-app'), !(isSlider || stepMatch));
     setHidden($('param-step'), !stepMatch);
+    // Orientação do fader (o bloco Spotify "controles + volume" é sempre deitado)
+    setHidden($('param-slider-dir'), !isSlider);
+    if (isSlider) $('f-slider-dir').value = def.sliderDir === 'h' ? 'h' : 'v';
+    // Telemetria: fonte, gráfico e destaque
+    const statId = def.actionId || '';
+    const hasChart = /^stats:(cpu|cpu_temp|gpu|gpu_temp|net|disk)$/.test(statId);
+    const hasSwap = /^stats:(cpu|cpu_temp|gpu|gpu_temp|vram|ram|ram_free)$/.test(statId);
+    const showStat = isStatKey(def) && def.statMode !== 'media' && !/^(spotify|player):/.test(statId);
+    setHidden($('param-stat'), !showStat);
+    if (showStat) {
+        const fontPct = Math.round((statFontScale(def) - 1) * 100);
+        $('f-stat-font').value = String(fontPct);
+        $('f-stat-font-out').textContent = `${fontPct > 0 ? '+' : ''}${fontPct}%`;
+        setHidden($('f-stat-chart'), !hasChart);
+        $('f-stat-chart').value = ['line', 'bars', 'none'].includes(def.statChart) ? def.statChart : 'area';
+        setHidden($('stat-swap-row'), !hasSwap);
+        $('f-stat-swap').checked = !!def.statSwap;
+    }
     // Tamanho da tecla (colunas x linhas)
     const spanNow = spanOf(def);
     const maxSp = maxSpanAt(def.index);
@@ -1759,6 +1818,17 @@ function applySpanFromInspector() {
         if (rows > 1) key.rowSpan = rows; else delete key.rowSpan;
     });
 }
+$('f-slider-dir').addEventListener('change', () => {
+    const horizontal = $('f-slider-dir').value === 'h';
+    editSelected(k => { if (horizontal) { k.sliderDir = 'h'; delete k.tall; } else delete k.sliderDir; });
+});
+$('f-stat-font').addEventListener('input', () => {
+    const pct = parseInt($('f-stat-font').value, 10) || 0;
+    $('f-stat-font-out').textContent = `${pct > 0 ? '+' : ''}${pct}%`;
+    editSelected(k => { if (pct === 0) delete k.statFont; else k.statFont = Math.round((1 + pct / 100) * 100) / 100; });
+});
+$('f-stat-chart').addEventListener('change', () => { const v = $('f-stat-chart').value; editSelected(k => { if (v === 'line' || v === 'bars' || v === 'none') k.statChart = v; else delete k.statChart; }); });
+$('f-stat-swap').addEventListener('change', () => { const on = $('f-stat-swap').checked; editSelected(k => { if (on) k.statSwap = true; else delete k.statSwap; }); });
 $('f-col-span').addEventListener('change', applySpanFromInspector);
 $('f-row-span').addEventListener('change', applySpanFromInspector);
 $('btn-clear-key').addEventListener('click', () => { if (state.selected !== null) clearKey(state.selected); });
@@ -1842,6 +1912,24 @@ iconBtn.addEventListener('click', () => {
 });
 iconSearch.addEventListener('input', renderIconGrid);
 $('icon-none').addEventListener('click', () => { editSelected(k => { delete k.icon; }); closePopover(); iconBtn.focus(); });
+$('icon-upload').addEventListener('click', () => $('icon-file').click());
+$('icon-file').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const target = state.selected;
+    toast(`Enviando ${file.name}…`);
+    const res = await apiFetch('/api/media', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file });
+    if (!res.ok || !res.data || !res.data.url) { toast((res.data && res.data.error) || 'Não foi possível enviar a imagem', { type: 'error' }); return; }
+    if (state.selected !== target) return;   // a seleção mudou durante o envio
+    // Imagem própria entra ocupando a tecla inteira (GIF animado, foto); dá para desligar no interruptor
+    editSelected(k => { k.icon = res.data.url; k.imageFill = true; delete k.iconScale; if (k.title === undefined) k.title = ''; });
+    closePopover(); iconBtn.focus();
+});
+$('f-icon-fill').addEventListener('change', () => {
+    const on = $('f-icon-fill').checked;
+    editSelected(k => { if (on) { k.imageFill = true; delete k.iconScale; } else delete k.imageFill; });
+});
 iconPop.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePopover(); iconBtn.focus(); } });
 
 // --------------------------------------------------------------------------
@@ -1891,14 +1979,35 @@ async function pollStatus() {
     const ts = integ.teamspeak || {};
     setChip('chip-ts', ts.connected ? (ts.needsAuthorization ? 'warn' : 'on') : 'off',
         ts.connected ? (ts.needsAuthorization ? 'TeamSpeak: autorize o MatDeck em Remote Apps' : `TeamSpeak conectado${ts.nickname ? ' como ' + ts.nickname : ''}`) : 'TeamSpeak desconectado');
-    const dc = integ.discord;
-    setChip('chip-discord', dc && dc.connected ? 'on' : (caps.ydotool || caps.xdotool ? 'warn' : 'off'),
-        dc && dc.connected ? 'Discord conectado' : 'Discord: controle por atalhos de teclado (foca a janela e envia o atalho)');
+    const dc = integ.discord || {};
+    const dcText = describeDiscord(dc);
+    setChip('chip-discord', dc.authenticated ? 'on' : (dc.authorizing || (!dc.needsSetup && !dc.connected) || caps.ydotool || caps.xdotool ? 'warn' : 'off'), dcText);
+    const dcStatus = $('discord-rpc-status');
+    if (dcStatus) dcStatus.textContent = dcText;
     const keysOk = !!(caps.ydotool || caps.kdotool || caps.xdotool);
     setChip('chip-keys', keysOk ? 'on' : 'off', keysOk ? `Envio de teclas: ${caps.ydotool ? 'ydotool' : caps.kdotool ? 'kdotool' : 'xdotool'}` : 'Nenhuma ferramenta de teclado disponível (ydotool/xdotool)');
     setAutoUI(!!s.autoDetect);
     if (s.profile && s.profile !== state.current) { state.current = s.profile; renderAll(); }
 }
+
+function describeDiscord(dc) {
+    if (dc.authenticated) return `Discord conectado pela API${dc.user ? ' como ' + dc.user.username : ''}${dc.voice ? (dc.voice.mute ? ' · mic mudo' : ' · mic aberto') : ''}`;
+    if (dc.needsSetup) return 'Discord: sem Client ID, controle por atalhos de teclado (foca a janela e envia o atalho)';
+    if (dc.authorizing) return 'Discord: aceite a janela de autorização que abriu no Discord';
+    if (dc.declined) return 'Discord: autorização recusada; clique em Autorizar para tentar de novo';
+    if (!dc.connected) return `Discord: ${dc.error || 'aplicativo fechado'} (enquanto isso, atalhos de teclado)`;
+    return `Discord: ${dc.error || 'autenticando…'}`;
+}
+
+$('btn-discord-authorize').addEventListener('click', async () => {
+    const btn = $('btn-discord-authorize');
+    btn.disabled = true;
+    const res = await apiJson('/api/discord/authorize', 'POST');
+    btn.disabled = false;
+    if (!res.ok) { toast((res.data && res.data.error) || 'Não foi possível pedir a autorização', { type: 'error' }); return; }
+    toast('Aceite a janela de autorização no Discord.');
+    pollStatus();
+});
 
 function setAutoUI(active) {
     state.autoDetect = active;
@@ -1930,6 +2039,7 @@ function initWebSocket() {
     ws.onopen = () => {
         setConn('connected');
         wsSend({ event: 'clientHello', device: 'Manage', version: '1.3.1', width: window.innerWidth, height: window.innerHeight });
+        loadPending();
     };
     ws.onmessage = (ev) => {
         try { handleServerMessage(JSON.parse(ev.data)); } catch (e) { console.error('Erro ao ler WebSocket:', e); }
@@ -1995,8 +2105,93 @@ async function handleServerMessage(msg) {
             pluginsChangedTimer = setTimeout(() => { pluginsChangedTimer = null; reloadCatalog(); if (pluginsModal.classList.contains('active')) renderPlugins(); }, 500);
             break;
         case 'notify': showServerNotification(msg); break;
+        case 'pairing': state.pending = Array.isArray(msg.pending) ? msg.pending : []; renderPairingCards(); break;
+        case 'devices': state.devices = Array.isArray(msg.devices) ? msg.devices : []; renderDevices(); break;
         default: break;
     }
+}
+
+// --------------------------------------------------------------------------
+// Dispositivos: pedidos de conexão (PIN) e aparelhos emparelhados
+// Só este PC recebe esses eventos (o servidor filtra por conexão loopback)
+// --------------------------------------------------------------------------
+const pairingCards = $('pairing-cards');
+let pairingTick = null;
+
+function fmtAgo(ts) {
+    const s = Math.max(0, Math.round((Date.now() - Number(ts || 0)) / 1000));
+    if (!ts) return 'nunca';
+    if (s < 60) return 'agora mesmo';
+    if (s < 3600) return `há ${Math.round(s / 60)} min`;
+    if (s < 86400) return `há ${Math.round(s / 3600)} h`;
+    return `há ${Math.round(s / 86400)} d`;
+}
+
+function fmtCountdown(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function renderPairingCards() {
+    pairingCards.textContent = '';
+    for (const p of state.pending) {
+        const digits = String(p.pin || '').split('');
+        pairingCards.appendChild(h('div', { class: 'pairing-card', role: 'dialog', 'aria-label': `Pedido de conexão de ${p.name}` },
+            h('div', { class: 'pairing-head' },
+                h('span', { class: 'pairing-title', text: 'Um aparelho quer conectar' }),
+                h('span', { class: 'pairing-meta', text: `${p.name} · ${p.ip}` })),
+            h('div', { class: 'pairing-pin', 'aria-label': `PIN ${digits.join(' ')}` }, digits.map(d => h('span', { text: d }))),
+            h('div', { class: 'pairing-foot' },
+                h('span', { class: 'pairing-expires', dataset: { expires: String(p.expiresAt || 0) } }),
+                h('button', { type: 'button', class: 'btn btn-danger btn-sm', text: 'Recusar', onclick: () => refusePairing(p) }))));
+    }
+    tickPairing();
+    if (state.pending.length && !pairingTick) pairingTick = setInterval(tickPairing, 1000);
+    if (!state.pending.length && pairingTick) { clearInterval(pairingTick); pairingTick = null; }
+}
+
+function tickPairing() {
+    for (const el of pairingCards.querySelectorAll('.pairing-expires')) {
+        const left = Number(el.dataset.expires) - Date.now();
+        el.textContent = left > 0 ? `Digite no aparelho · vence em ${fmtCountdown(left)}` : 'PIN vencido';
+    }
+}
+
+async function refusePairing(p) {
+    const res = await apiFetch(`/api/pair/${encodeURIComponent(p.id)}`, { method: 'DELETE' });
+    if (res.ok) toast(`Pedido de ${p.name} recusado. O aparelho fica bloqueado por 10 minutos.`, { type: 'info' });
+    else toast('Não foi possível recusar o pedido.', { type: 'error' });
+}
+
+async function loadPending() {
+    const res = await apiFetch('/api/pair/pending');
+    if (res.ok && res.data) { state.pending = res.data.pending || []; renderPairingCards(); }
+}
+
+function renderDevices() {
+    const box = $('devices-list');
+    if (!box) return;
+    box.textContent = '';
+    if (!state.devices.length) { box.appendChild(h('p', { class: 'settings-note', text: 'Nenhum aparelho emparelhado ainda. Abra o deck pela rede num tablet ou celular e digite o PIN que aparecer aqui.' })); return; }
+    for (const d of state.devices) {
+        box.appendChild(h('div', { class: 'device-row' },
+            h('span', { class: `device-dot${d.online ? ' is-online' : ''}`, 'aria-hidden': 'true' }),
+            h('div', { class: 'device-info' },
+                h('span', { class: 'device-name', text: d.name || 'Dispositivo' }),
+                h('span', { class: 'device-meta', text: `${d.ip || '?'} · ${d.online ? 'conectado agora' : 'visto ' + fmtAgo(d.lastSeenAt)}` })),
+            h('button', { type: 'button', class: 'btn btn-danger btn-sm', text: 'Remover', onclick: () => removeDevice(d) })));
+    }
+}
+
+async function removeDevice(d) {
+    const res = await apiFetch(`/api/devices/${encodeURIComponent(d.id)}`, { method: 'DELETE' });
+    if (res.ok) toast(`${d.name || 'Aparelho'} removido. Ele vai pedir PIN na próxima conexão.`, { type: 'success' });
+    else toast('Não foi possível remover o aparelho.', { type: 'error' });
+}
+
+async function loadDevices() {
+    const res = await apiFetch('/api/devices');
+    if (res.ok && res.data) { state.devices = res.data.devices || []; renderDevices(); }
 }
 
 // --------------------------------------------------------------------------
@@ -2078,6 +2273,24 @@ function refreshSettingsDirty() {
     settingsStatus.className = 'settings-status' + (diff ? ' is-dirty' : '');
 }
 
+/** Ajustes > Auto-Perfil: um seletor por app detectável (valor '' = perfil de mesmo nome, 'none' = não trocar, senão o id do perfil). */
+function renderAutoProfileFields(apps) {
+    const box = $('auto-profiles-rows');
+    box.textContent = '';
+    for (const a of apps || []) {
+        const sel = h('select', { class: 'form-select', id: `cfg-auto-${a.id}`, dataset: { path: `ui.autoProfiles.${a.id}` } });
+        const own = state.list.find(p => p.id === a.id);
+        sel.appendChild(h('option', { value: '', text: a.defaultAvailable ? `Padrão (${own ? own.name || own.id : a.id})` : 'Padrão (perfil removido: não troca)' }));
+        sel.appendChild(h('option', { value: 'none', text: 'Não trocar' }));
+        for (const p of state.list) {
+            if (p.hidden) continue;
+            sel.appendChild(h('option', { value: p.id, text: p.name || p.id }));
+        }
+        box.appendChild(h('div', { class: 'control-group' }, h('label', { for: sel.id, text: a.label }), sel));
+    }
+    setHidden(box.closest('.settings-section'), !box.children.length);
+}
+
 async function openSettings() {
     loadedConfig = null;
     settingsFocusReturn = document.activeElement;
@@ -2089,7 +2302,7 @@ async function openSettings() {
     settingsModal.classList.add('active');
     settingsModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    const res = await apiFetch('/api/config');
+    const [res, autoRes] = await Promise.all([apiFetch('/api/config'), apiFetch('/api/autodetect'), loadDevices()]);
     setHidden(settingsLoading, true);
     if (!res.ok || !res.data || typeof res.data !== 'object') {
         settingsError.textContent = 'Não foi possível carregar as configurações. Verifique se o servidor está em execução.';
@@ -2097,6 +2310,7 @@ async function openSettings() {
         return;
     }
     loadedConfig = res.data;
+    renderAutoProfileFields(autoRes.ok && autoRes.data ? autoRes.data.apps : []);
     for (const el of configFields()) writeFieldValue(el, getPath(loadedConfig, el.dataset.path));
     setHidden(settingsSections, false);
     refreshSettingsDirty();

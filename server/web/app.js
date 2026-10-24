@@ -65,6 +65,12 @@ const gridEl = $('deck-grid');
 const deckOverlay = $('deck-overlay');
 const deckOverlayTitle = $('deck-overlay-title');
 const deckOverlaySub = $('deck-overlay-sub');
+const deckOverlayMain = $('deck-overlay-main');
+const pairCard = $('pair-card');
+const pairForm = $('pair-form');
+const pairPin = $('pair-pin');
+const pairSubmit = $('pair-submit');
+const pairStatus = $('pair-status');
 const swipeLabel = $('swipe-label');
 const hardwareHud = $('hardware-hud');
 
@@ -350,7 +356,8 @@ function initWebSocket() {
     ws.onclose = () => {
         setConnectionState('offline');
         cancelAllDrags();
-        if (!wsReconnectTimer) wsReconnectTimer = setTimeout(initWebSocket, 2500);
+        // Volta pela sessão: se o acesso deste aparelho foi removido no gerenciador, a tela de PIN reaparece
+        if (!wsReconnectTimer) wsReconnectTimer = setTimeout(startSession, 2500);
     };
 
     ws.onerror = () => {
@@ -360,11 +367,11 @@ function initWebSocket() {
 
 /** Diagnóstico remoto (POST /api/debug/layout): geometria e estilos das teclas, para navegadores sem console (iPad). */
 function layoutDump() {
-    const props = ['display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'flex', 'width', 'height', 'fontSize', 'padding'];
+    const props = ['display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'flex', 'width', 'height', 'fontSize', 'padding', 'textAlign', 'objectFit', 'objectPosition', 'transform', 'marginLeft'];
     const node = (el, depth) => {
         const r = el.getBoundingClientRect();
         const cs = getComputedStyle(el);
-        const out = { c: (el.getAttribute('class') || el.tagName).slice(0, 70), r: [r.left, r.top, r.width, r.height].map(Math.round) };
+        const out = { c: (el.getAttribute('class') || el.tagName).slice(0, 70), r: [r.left, r.top, r.width, r.height].map(Math.round), sw: el.scrollWidth, cw: el.clientWidth, t: (el.children.length ? '' : (el.textContent || '').slice(0, 30)) };
         for (const p of props) out[p] = cs[p];
         if (depth > 0 && el.children.length) out.ch = Array.from(el.children).slice(0, 10).map(c => node(c, depth - 1));
         return out;
@@ -520,7 +527,7 @@ function spanOf(cfg, cols = gridCols, rows = gridRows) {
 
 /** Fader alto e estreito: 1 coluna por 2+ linhas. */
 function isTallKey(cfg) {
-    if (!cfg || !isSliderKey(cfg)) return false;
+    if (!cfg || !isSliderKey(cfg) || isWideKey(cfg)) return false;
     const sp = spanOf(cfg);
     return sp.rows > 1 && sp.cols === 1;
 }
@@ -606,8 +613,18 @@ function isKeyMuted(cfg) {
            (cfg.title && cfg.title.toUpperCase().includes('MUTADO'));
 }
 
+/** Teclas de "segurar": keyDown na hora do toque e keyUp ao soltar (push-to-talk), em vez do par no soltar. */
+function isHoldKey(cfg) {
+    return /^(discord:ptt|ts:ptt|ts:whisper)$/.test(String((cfg && cfg.actionId) || ''));
+}
+
 function isSliderKey(cfg) {
-    return !!(cfg.isSlider || (cfg.actionId && cfg.actionId.startsWith('vol_slider:')));
+    return !!(cfg.isSlider || (cfg.actionId && (cfg.actionId.startsWith('vol_slider:') || cfg.actionId === 'spotify:mixer')));
+}
+
+/** Fader deitado (arrasta para o lado); o bloco Spotify "controles + volume" é sempre deitado. */
+function isWideKey(cfg) {
+    return !!cfg && isSliderKey(cfg) && (cfg.sliderDir === 'h' || cfg.actionId === 'spotify:mixer');
 }
 
 /** Cor escura (luminância < 0.5)? Usado para manter título/ícone legíveis sobre fundos personalizados no tema claro. */
@@ -620,7 +637,7 @@ function isDarkColor(hex) {
 }
 
 function isStatKey(cfg) {
-    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel'));
+    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel' || cfg.actionId === 'discord:voice_room'));
 }
 
 
@@ -648,8 +665,23 @@ function statChartSvg(cfg, prefix) {
     const c1 = cfg.statColor || '#3B82F6';
     const c2 = cfg.statColor2 || '#EC4899';
     let out = `<svg class="${prefix}-chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`;
+    const kind = cfg.statChart === 'line' || cfg.statChart === 'bars' ? cfg.statChart : 'area';
+    if (kind === 'bars') {
+        // Colunas: uma por amostra, da direita para a esquerda
+        const bars = (hist, color, opacity) => {
+            const n = hist.length;
+            if (!n) return '';
+            const step = W / N;
+            const bw = Math.max(0.6, step * 0.7);
+            return hist.map((v, i) => {
+                const bh = Math.min(H, Math.max(0, (v - min) / span) * H);
+                return `<rect x="${(W - (n - i) * step + (step - bw) / 2).toFixed(2)}" y="${(H - bh).toFixed(2)}" width="${bw.toFixed(2)}" height="${Math.max(0.5, bh).toFixed(2)}" fill="${color}" fill-opacity="${opacity}"/>`;
+            }).join('');
+        };
+        return out + bars(h1, c1, h2.length ? 0.9 : 1) + bars(h2, c2, 0.75) + '</svg>';
+    }
     const l1 = line(h1);
-    if (l1) out += `<polygon points="${l1.xStart},${H} ${l1.pts} ${W},${H}" fill="${c1}" fill-opacity="0.28"/><polyline points="${l1.pts}" fill="none" stroke="${c1}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    if (l1) out += (kind === 'area' ? `<polygon points="${l1.xStart},${H} ${l1.pts} ${W},${H}" fill="${c1}" fill-opacity="0.28"/>` : '') + `<polyline points="${l1.pts}" fill="none" stroke="${c1}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
     const l2 = line(h2);
     if (l2) out += `<polyline points="${l2.pts}" fill="none" stroke="${c2}" stroke-width="1.6" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
     return out + '</svg>';
@@ -681,6 +713,8 @@ function statBarsSvg(cfg, prefix) {
 function statInnerHtml(cfg, prefix) {
     const mode = cfg.statMode || (Array.isArray(cfg.statHistory) ? 'graph' : 'bar');
     const color = cfg.statColor || cfg.badgeColor || '';
+    // Destaque invertido: o valor do cabeçalho vira o número grande e vice-versa (ex.: temperatura grande, uso pequeno)
+    if (cfg.statSwap && cfg.statBig !== undefined && cfg.statBig !== null && cfg.statHead) cfg = { ...cfg, statBig: cfg.statHead, statHead: cfg.statBig };
     let html = `<div class="${prefix}-head"><span class="${prefix}-label">${escHtml(cfg.statLabel || cfg.title || '')}</span><span class="${prefix}-headval">${escHtml(cfg.statHead !== undefined ? cfg.statHead : (cfg.statSub || ''))}</span></div>`;
     if (mode === 'meters' && Array.isArray(cfg.statRows)) {
         html += `<div class="${prefix}-meters">` + cfg.statRows.map(r => `<div class="${prefix}-meter"><div class="${prefix}-meter-row"><span class="${prefix}-meter-k">${escHtml(r.k)}</span><span class="${prefix}-meter-sub">${escHtml(r.sub || '')}</span><span class="${prefix}-meter-v">${escHtml(r.v)}</span></div><div class="${prefix}-bar"><i style="width:${Math.max(0, Math.min(100, Number(r.pct) || 0))}%;background:${escHtml(r.color || color)}"></i></div></div>`).join('') + '</div>';
@@ -694,7 +728,7 @@ function statInnerHtml(cfg, prefix) {
         html += `<div class="${prefix}-big">${escHtml(cfg.statValue)}</div>`;
     }
     if (cfg.statSub && mode !== 'dual') html += `<div class="${prefix}-sub" style="color:${escHtml(color)}">${escHtml(cfg.statSub)}</div>`;
-    if (mode === 'graph' || mode === 'dual') html += `<div class="${prefix}-chart">${statChartSvg(cfg, prefix)}</div>`;
+    if ((mode === 'graph' || mode === 'dual') && cfg.statChart !== 'none') html += `<div class="${prefix}-chart">${statChartSvg(cfg, prefix)}</div>`;
     else if (mode === 'cores') html += `<div class="${prefix}-chart ${prefix}-chart-tall">${statBarsSvg(cfg, prefix)}</div>`;
     else if (cfg.statPercent !== undefined && cfg.statPercent !== null) html += `<div class="${prefix}-bar"><i style="width:${Math.max(0, Math.min(100, Number(cfg.statPercent) || 0))}%;background:${escHtml(color)}"></i></div>`;
     return html;
@@ -709,12 +743,31 @@ function renderStatContent(el, cfg) {
     }
     const mode = cfg.statMode || 'bar';
     box.className = `key-stat mode-${mode}`;
+    const fontScale = statFontScale(cfg);
+    box.style.setProperty('--stat-font', fontScale === 1 ? '' : String(fontScale));
     // Cor do texto escolhida no gerenciador (titleColor) vale para o bloco inteiro
     const customText = cfg.titleColor && !isKeyMuted(cfg);
     box.style.color = customText ? cfg.titleColor : '';
     if (customText) box.classList.add('has-text-color');
     if (mode === 'media') { renderMediaContent(box, cfg); return; }
     box.innerHTML = statInnerHtml(cfg, 'key-stat');
+    // Navegador sem var() dentro de calc() (iPad 2): escala cada texto por JS a partir do tamanho que o CSS deu
+    if (NO_GRID && fontScale !== 1) {
+        const texts = box.querySelectorAll('.key-stat-label, .key-stat-headval, .key-stat-big, .key-stat-sub, .key-stat-rowk, .key-stat-rowv, .key-stat-meter-k, .key-stat-meter-v, .key-stat-meter-sub');
+        for (let i = 0; i < texts.length; i++) {
+            const px = parseFloat(window.getComputedStyle(texts[i]).fontSize);
+            if (px) texts[i].style.fontSize = `${Math.round(px * fontScale * 10) / 10}px`;
+        }
+    }
+}
+
+/** Escala de fonte do bloco de telemetria: número (0.5 a 2.5); 's'/'l' são o formato antigo. */
+function statFontScale(cfg) {
+    const v = cfg && cfg.statFont;
+    if (v === 's') return 0.8;
+    if (v === 'l') return 1.25;
+    const n = Number(v);
+    return n > 0 ? Math.min(2.5, Math.max(0.5, n)) : 1;
 }
 
 /**
@@ -822,6 +875,7 @@ function applyIconScale(el, cfg) {
         base = m ? Math.max(36, Math.min(160, m * 0.22)) : 36;
     }
     if (el.classList.contains('has-auto-btn')) base = tall ? 30 : 26;   // ícone dentro do botão AUTO
+    if (isWideKey(cfg)) base = 26;                                        // fader deitado: ícone pequeno no canto
     const px = Math.round(base * scale);
     img.style.width = `${px}px`;
     img.style.height = `${px}px`;
@@ -838,17 +892,19 @@ function fitAllIcons() {
 window.addEventListener('resize', () => requestAnimationFrame(fitAllIcons));
 
 function sliderAppOf(cfg) {
-    return cfg.sliderApp || (cfg.actionId ? cfg.actionId.replace('vol_slider:', '') : 'master');
+    if (cfg.sliderApp) return cfg.sliderApp;
+    if (cfg.actionId && cfg.actionId.startsWith('spotify:')) return 'spotify';
+    return cfg.actionId ? cfg.actionId.replace('vol_slider:', '') : 'master';
 }
 
 function createKeyElement(cfg) {
     const el = document.createElement('div');
     const muted = isKeyMuted(cfg);
     const isSlider = isSliderKey(cfg);
-    const hasAction = !!(cfg.actionId || cfg.title || isSlider);
+    const hasAction = !!(cfg.actionId || cfg.title || isSlider || (cfg.imageFill && cfg.icon));   // imagem/GIF decorativa não é tecla vazia
 
     el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') +
-        (isTallKey(cfg) ? ' key-tall' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
+        (isTallKey(cfg) ? ' key-tall' : '') + (isWideKey(cfg) ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
     el.id = `deck-key-${cfg.index}`;
     el.setAttribute('role', isSlider ? 'slider' : 'button');
     el.tabIndex = 0;
@@ -862,20 +918,29 @@ function createKeyElement(cfg) {
         const fill = document.createElement('div');
         fill.className = 'key-slider-fill';
         const val = cfg.sliderValue !== undefined ? cfg.sliderValue : 80;
-        fill.style.height = `${val}%`;
-        if (isTallKey(cfg)) {
+        if (isWideKey(cfg)) {
+            // Fader deitado: trilho atravessado na parte de baixo, preenchimento da esquerda para a direita
+            fill.style.height = '100%';
+            fill.style.width = `${val}%`;
+            const track = document.createElement('div');
+            track.className = 'key-slider-track key-slider-track-h';
+            track.appendChild(fill);
+            el.appendChild(track);
+        } else if (isTallKey(cfg)) {
             // Fader alto: trilho estreito centralizado, com o preenchimento dentro dele
+            fill.style.height = `${val}%`;
             const track = document.createElement('div');
             track.className = 'key-slider-track';
             track.appendChild(fill);
             el.appendChild(track);
         } else {
+            fill.style.height = `${val}%`;
             el.appendChild(fill);
         }
         el.setAttribute('aria-valuemin', '0');
         el.setAttribute('aria-valuemax', '100');
         el.setAttribute('aria-valuenow', String(val));
-        el.setAttribute('aria-orientation', 'vertical');
+        el.setAttribute('aria-orientation', isWideKey(cfg) ? 'horizontal' : 'vertical');
     }
 
     if (isStatKey(cfg)) {
@@ -919,7 +984,7 @@ function createKeyElement(cfg) {
  * Cada botão envia a ação direto ao servidor (evento "action"), sem passar pelo toque da tecla.
  */
 function syncTransport(el, cfg) {
-    const wants = !!cfg.transport || cfg.actionId === 'spotify:transport' || cfg.actionId === 'player:transport';
+    const wants = !!cfg.transport || cfg.actionId === 'spotify:transport' || cfg.actionId === 'player:transport' || cfg.actionId === 'spotify:mixer';
     let bar = el.querySelector('.key-transport-bar');
     // Prefixo da ação dos botões: spotify:* ou player:* (mídia do sistema)
     if (cfg.actionId) el.dataset.transportPrefix = String(cfg.actionId).split(':')[0];
@@ -1014,9 +1079,12 @@ function applyKeyAccessibleName(el, cfg) {
  */
 function attachKeyInteraction(el, cfg) {
     const isSlider = isSliderKey(cfg);
+    const wide = isWideKey(cfg);
+    const hold = isHoldKey(cfg);
     const appId = sliderAppOf(cfg);
 
     let pointerDown = false;
+    let holdActive = false; // keyDown já enviado (tecla de segurar); garante o keyUp ao soltar/cancelar
     let dragging = false;
     let dragAxis = null; // 'x' | 'y' (travado no primeiro movimento acima do limiar)
     let startX = 0;
@@ -1030,7 +1098,7 @@ function attachKeyInteraction(el, cfg) {
     const paintPercent = (percent) => {
         lastShownValue = percent;
         const fill = el.querySelector('.key-slider-fill');
-        if (fill) fill.style.height = `${percent}%`;
+        if (fill) { if (wide) fill.style.width = `${percent}%`; else fill.style.height = `${percent}%`; }
         const badge = el.querySelector('.key-badge');
         if (badge) badge.textContent = `${percent}%`;
         el.setAttribute('aria-valuenow', String(percent));
@@ -1060,6 +1128,17 @@ function attachKeyInteraction(el, cfg) {
         if (!rect.height) return lastShownValue;
         return clamp(Math.round((1 - (clientY - rect.top) / rect.height) * 100), 0, 100);
     };
+    const percentFromX = (clientX) => {
+        const rect = (el.querySelector('.key-slider-track') || el).getBoundingClientRect();
+        if (!rect.width) return lastShownValue;
+        return clamp(Math.round(((clientX - rect.left) / rect.width) * 100), 0, 100);
+    };
+
+    const releaseHold = () => {
+        if (!holdActive) return;
+        holdActive = false;
+        sendKeyEvent('keyUp', cfg.index);
+    };
 
     const cleanup = () => {
         pointerDown = false;
@@ -1072,10 +1151,11 @@ function attachKeyInteraction(el, cfg) {
         activeDragCleanups.delete(cleanup);
     };
 
-    const isVolumeDrag = () => isSlider && dragAxis === 'y';
+    const isVolumeDrag = () => isSlider && dragAxis === (wide ? 'x' : 'y');
 
     const onMove = (e) => {
         if (!pointerDown || e.pointerId !== activePointerId) return;
+        if (hold) { e.preventDefault(); return; } // segurando: o dedo pode deslizar sem soltar a tecla
         const dx = Math.abs(e.clientX - startX);
         const dy = Math.abs(e.clientY - startY);
         if (!dragging) {
@@ -1085,7 +1165,7 @@ function attachKeyInteraction(el, cfg) {
         }
         if (!isVolumeDrag()) return; // tecla comum ou deslize horizontal: só cancela o toque
         el.classList.add('is-dragging');
-        const percent = percentFromY(e.clientY);
+        const percent = wide ? percentFromX(e.clientX) : percentFromY(e.clientY);
         paintPercent(percent);
         sendVolume(percent, false);
         e.preventDefault();
@@ -1096,6 +1176,7 @@ function attachKeyInteraction(el, cfg) {
         const wasDragging = dragging;
         const wasVolume = isVolumeDrag();
         cleanup();
+        if (hold) { releaseHold(); return; }
         if (wasDragging) {
             if (wasVolume) sendVolume(lastShownValue, true); // garante o valor final
             return;
@@ -1112,6 +1193,7 @@ function attachKeyInteraction(el, cfg) {
         if (!pointerDown) return;
         const wasVolume = dragging && isVolumeDrag();
         cleanup();
+        releaseHold();
         if (wasVolume) sendVolume(lastShownValue, true);
     };
 
@@ -1132,6 +1214,11 @@ function attachKeyInteraction(el, cfg) {
         window.addEventListener('blur', onCancel);
         activeDragCleanups.add(cleanup);
         e.preventDefault();
+        if (hold) {
+            // Push-to-talk: o keyDown vai na hora; o keyUp sai em onUp/onCancel
+            if (sendKeyEvent('keyDown', cfg.index)) holdActive = true;
+            else toast('Sem conexão com o servidor.', { type: 'error', duration: 2500 });
+        }
     });
 
     // Evita menu de contexto em toque longo no tablet
@@ -1140,6 +1227,12 @@ function attachKeyInteraction(el, cfg) {
     el.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
+            if (hold) {
+                if (e.repeat || holdActive) return;
+                if (sendKeyEvent('keyDown', cfg.index)) holdActive = true;
+                else toast('Sem conexão com o servidor.', { type: 'error', duration: 2500 });
+                return;
+            }
             if (sendKeyEvent('keyDown', cfg.index)) sendKeyEvent('keyUp', cfg.index);
             else toast('Sem conexão com o servidor.', { type: 'error', duration: 2500 });
             return;
@@ -1158,6 +1251,9 @@ function attachKeyInteraction(el, cfg) {
         paintPercent(next);
         sendVolume(next, true);
     });
+    el.addEventListener('keyup', (e) => {
+        if (hold && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); releaseHold(); }
+    });
 }
 
 function updateSingleKeyUI(index) {
@@ -1170,7 +1266,8 @@ function updateSingleKeyUI(index) {
     const pressed = el.classList.contains('is-pressed');
     const draggingNow = el.classList.contains('is-dragging');
     el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') +
-        (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track') ? ' key-tall' : '') +
+        (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track:not(.key-slider-track-h)') ? ' key-tall' : '') +
+        (el.querySelector('.key-slider-track-h') ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') +
         (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') +
         ((spanOf(cfg).cols > 1 || spanOf(cfg).rows > 1) ? ' key-span' : '');
     applyKeyAccessibleName(el, cfg);
@@ -1199,7 +1296,7 @@ function updateSingleKeyUI(index) {
         // Durante o arraste local, a posição do dedo manda; fora dele, o servidor manda.
         if (!draggingNow) {
             const val = cfg.sliderValue !== undefined ? cfg.sliderValue : 80;
-            fill.style.height = `${val}%`;
+            if (isWideKey(cfg)) fill.style.width = `${val}%`; else fill.style.height = `${val}%`;
             el.setAttribute('aria-valuenow', String(val));
         }
     } else if (fill) {
@@ -1618,6 +1715,129 @@ async function pollStatus() {
 }
 
 // ----------------------------------------------------
+// SESSÃO E EMPARELHAMENTO POR PIN
+// O próprio PC entra direto; um aparelho da rede precisa digitar o PIN que o gerenciador mostra.
+// O token fica em cookie HttpOnly gravado pelo servidor; aqui só decidimos entre deck e tela de PIN.
+// ----------------------------------------------------
+let statusTimer = null;
+let pairSession = null;
+let pairTimer = null;
+
+async function startSession() {
+    if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+    const res = await apiFetch('/api/session');
+    if (res.ok && res.data && res.data.role === 'guest') { showPairing(); return; }
+    // Confiável, emparelhado ou servidor fora do ar (o WebSocket cuida de reconectar)
+    hidePairing();
+    initWebSocket();
+    pollStatus();
+    if (!statusTimer) statusTimer = setInterval(pollStatus, 5000);
+}
+
+function setPairStatus(text, kind) {
+    pairStatus.textContent = text || '';
+    pairStatus.className = 'pair-status' + (kind ? ' is-' + kind : '');
+}
+
+function showPairing() {
+    if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+    document.body.classList.add('is-offline');
+    setHidden(deckOverlayMain, true);
+    setHidden(pairCard, false);
+    setHidden(deckOverlay, false);
+    gridEl.setAttribute('aria-busy', 'true');
+    pairPin.value = '';
+    pairStart();
+}
+
+function hidePairing() {
+    if (pairTimer) { clearTimeout(pairTimer); pairTimer = null; }
+    pairSession = null;
+    setHidden(pairCard, true);
+    setHidden(deckOverlayMain, false);
+}
+
+function pairRetryIn(ms) {
+    if (pairTimer) clearTimeout(pairTimer);
+    pairTimer = setTimeout(pairStart, Math.max(1000, ms));
+}
+
+/** Pede um PIN novo ao servidor; ele aparece no gerenciador. Renova sozinho quando vence. */
+async function pairStart() {
+    if (pairTimer) { clearTimeout(pairTimer); pairTimer = null; }
+    pairSession = null;
+    pairSubmit.disabled = true;
+    setPairStatus('Pedindo um PIN ao computador…');
+    const res = await apiFetch('/api/pair/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const d = res.data || {};
+    if (res.ok && d.id) {
+        pairSession = d.id;
+        pairSubmit.disabled = false;
+        setPairStatus('O PIN está no gerenciador do computador. Vale por ' + Math.round((d.ttlMs || 120000) / 60000) + ' min.');
+        pairRetryIn((d.ttlMs || 120000) + 500);
+        try { pairPin.focus(); } catch (e) { /* ignore */ }
+        return;
+    }
+    if (res.status === 429) {
+        const wait = d.retryAfterMs || 30000;
+        setPairStatus('Muitas tentativas. Um PIN novo em ' + Math.ceil(wait / 1000) + ' s.', 'error');
+        pairRetryIn(wait + 300);
+        return;
+    }
+    if (res.status === 400) {
+        // Este aparelho já tem acesso (cookie chegou por outra aba, por exemplo): entra direto
+        hidePairing();
+        startSession();
+        return;
+    }
+    setPairStatus(res.status ? (d.error || 'O computador recusou o pedido. Tentando de novo…') : 'Sem resposta do computador. Tentando de novo…', 'error');
+    pairRetryIn(3000);
+}
+
+async function pairVerify(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const pin = String(pairPin.value || '').replace(/\D/g, '');
+    if (pin.length !== 4) { setPairStatus('Digite os 4 dígitos do PIN.', 'error'); return; }
+    if (!pairSession) { pairStart(); return; }
+    pairSubmit.disabled = true;
+    setPairStatus('Conferindo…');
+    const res = await apiFetch('/api/pair/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pairSession, pin }) });
+    const d = res.data || {};
+    if (res.ok && d.success) {
+        if (pairTimer) { clearTimeout(pairTimer); pairTimer = null; }
+        setPairStatus('Conectado! Carregando o deck…', 'ok');
+        setTimeout(() => location.reload(), 400); // o cookie já veio na resposta; recarrega limpo
+        return;
+    }
+    pairPin.value = '';
+    if (res.status === 401) {
+        setPairStatus('PIN incorreto. ' + (d.attemptsLeft || 0) + ' tentativa(s) restante(s).', 'error');
+        pairSubmit.disabled = false;
+        try { pairPin.focus(); } catch (e2) { /* ignore */ }
+    } else if (res.status === 410) {
+        setPairStatus('Esse PIN venceu. Pedindo um novo…', 'error');
+        pairRetryIn(600);
+    } else if (res.status === 429) {
+        const wait = d.retryAfterMs || 30000;
+        setPairStatus('Muitas tentativas. Um PIN novo em ' + Math.ceil(wait / 1000) + ' s.', 'error');
+        pairRetryIn(wait + 300);
+    } else if (res.status === 400) {
+        // "Não precisa de PIN": este aparelho já tem acesso; revalida a sessão e entra
+        hidePairing();
+        startSession();
+    } else {
+        setPairStatus(d.error || 'Não foi possível conferir o PIN. Tente de novo.', 'error');
+        pairSubmit.disabled = false;
+    }
+}
+
+pairForm.addEventListener('submit', pairVerify);
+pairPin.addEventListener('input', () => {
+    // Quatro dígitos digitados: confere sem precisar tocar em Conectar
+    if (!pairSubmit.disabled && String(pairPin.value || '').replace(/\D/g, '').length === 4) pairVerify();
+});
+
+// ----------------------------------------------------
 // BOOT
 // ----------------------------------------------------
 renderSkeletonGrid();
@@ -1635,7 +1855,5 @@ syncViewportHeight();
 window.addEventListener('resize', syncViewportHeight);
 window.addEventListener('orientationchange', function () { setTimeout(syncViewportHeight, 300); });
 
-initWebSocket();
-pollStatus();
-setInterval(pollStatus, 5000);
+startSession();
 window.MATDECK_APP_BOOTED = true; // o carregador do index.html acusa se a inicialização parou antes daqui

@@ -129,6 +129,19 @@ a {
     box-shadow: var(--focus-ring);
 }
 
+/* Sem anel de foco do navegador após o toque: o Safari 9 não entende :focus-visible e deixaria o
+   contorno branco do sistema na tecla tocada. O anel por teclado continua pelo box-shadow acima. */
+.deck-key:focus,
+.key-auto-btn:focus,
+.key-media-btn:focus,
+.key-transport-btn:focus,
+.corner-btn:focus,
+.conn-dot:focus,
+.sheet-btn:focus,
+.segmented button:focus {
+    outline: none;
+}
+
 .ico {
     width: 16px;
     height: 16px;
@@ -309,6 +322,62 @@ body.is-offline .deck-grid {
     font-size: 12px;
     color: var(--muted);
 }
+
+/* Emparelhamento por PIN (dispositivo da rede) */
+.pair-card {
+    gap: var(--space-3);
+    max-width: 400px;
+}
+
+.pair-form {
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    gap: var(--space-2);
+    width: 100%;
+    margin-top: var(--space-1);
+}
+
+.pair-input {
+    width: 150px;
+    padding: 10px 0 10px 0.45em;
+    font-family: inherit;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 0.45em;
+    text-align: center;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.pair-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.pair-btn {
+    padding: 0 var(--space-4);
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent);
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--radius-sm);
+}
+
+.pair-status {
+    min-height: 1.5em;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.pair-status.is-error { color: var(--danger); }
+.pair-status.is-ok { color: var(--success); }
 
 .spinner {
     width: 18px;
@@ -497,8 +566,8 @@ body.is-offline .deck-grid {
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
-    font-size: clamp(10px, calc(2.5vmin * var(--key-font-scale)), 30px);
-    font-size: clamp(10px, calc(8cqmin * var(--key-font-scale)), 30px);
+    font-size: clamp(10px, calc(2.5vmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
+    font-size: clamp(10px, calc(8cqmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
 }
 
 .key-stat-meter-k {
@@ -577,8 +646,8 @@ body.is-offline .deck-grid {
     color: #1DB954;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-size: clamp(10px, calc(1.7vmin * var(--key-font-scale)), 18px);
-    font-size: clamp(10px, calc(5.5cqmin * var(--key-font-scale)), 18px);
+    font-size: clamp(10px, calc(1.7vmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
+    font-size: clamp(10px, calc(5.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
 }
 
 .key-stat.mode-media.has-cover .key-stat-label {
@@ -589,8 +658,8 @@ body.is-offline .deck-grid {
     font-weight: 600;
     text-transform: lowercase;
     color: var(--muted);
-    font-size: clamp(10px, calc(1.7vmin * var(--key-font-scale)), 18px);
-    font-size: clamp(10px, calc(5.5cqmin * var(--key-font-scale)), 18px);
+    font-size: clamp(10px, calc(1.7vmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
+    font-size: clamp(10px, calc(5.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
 }
 
 .key-stat-media-spacer {
@@ -602,8 +671,8 @@ body.is-offline .deck-grid {
     font-weight: 700;
     line-height: 1.15;
     letter-spacing: -0.02em;
-    font-size: clamp(12px, calc(2.8vmin * var(--key-font-scale)), 36px);
-    font-size: clamp(12px, calc(8.5cqmin * var(--key-font-scale)), 36px);
+    font-size: clamp(12px, calc(2.8vmin * var(--key-font-scale) * var(--stat-font, 1)), 36px);
+    font-size: clamp(12px, calc(8.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 36px);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -613,8 +682,8 @@ body.is-offline .deck-grid {
 .key-stat-media-artist {
     font-weight: 600;
     line-height: 1.15;
-    font-size: clamp(10px, calc(2.1vmin * var(--key-font-scale)), 26px);
-    font-size: clamp(10px, calc(6.5cqmin * var(--key-font-scale)), 26px);
+    font-size: clamp(10px, calc(2.1vmin * var(--key-font-scale) * var(--stat-font, 1)), 26px);
+    font-size: clamp(10px, calc(6.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 26px);
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -632,8 +701,8 @@ body.is-offline .deck-grid {
     justify-content: space-between;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
-    font-size: clamp(9px, calc(1.6vmin * var(--key-font-scale)), 18px);
-    font-size: clamp(9px, calc(5cqmin * var(--key-font-scale)), 18px);
+    font-size: clamp(9px, calc(1.6vmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
+    font-size: clamp(9px, calc(5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 18px);
     color: var(--muted);
     line-height: 1.1;
 }
@@ -731,16 +800,16 @@ body.is-offline .deck-grid {
 
 .key-stat-label {
     font-weight: 700;
-    font-size: clamp(11px, calc(2.66vmin * var(--key-font-scale)), 34px);
-    font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale)), 34px);
+    font-size: clamp(11px, calc(2.66vmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
+    font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
     letter-spacing: -0.01em;
     color: var(--muted);
 }
 
 .key-stat-headval {
     font-weight: 700;
-    font-size: clamp(11px, calc(2.66vmin * var(--key-font-scale)), 34px);
-    font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale)), 34px);
+    font-size: clamp(11px, calc(2.66vmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
+    font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
     font-variant-numeric: tabular-nums;
     color: var(--text);
     white-space: nowrap;
@@ -752,8 +821,8 @@ body.is-offline .deck-grid {
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: clamp(20px, calc(7.19vmin * var(--key-font-scale)), 110px);
-    font-size: clamp(20px, calc(23cqmin * var(--key-font-scale)), 110px);
+    font-size: clamp(20px, calc(7.19vmin * var(--key-font-scale) * var(--stat-font, 1)), 110px);
+    font-size: clamp(20px, calc(23cqmin * var(--key-font-scale) * var(--stat-font, 1)), 110px);
     letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -763,8 +832,8 @@ body.is-offline .deck-grid {
 .key-stat-sub {
     text-align: center;
     font-weight: 600;
-    font-size: clamp(10px, calc(2.34vmin * var(--key-font-scale)), 30px);
-    font-size: clamp(10px, calc(7.5cqmin * var(--key-font-scale)), 30px);
+    font-size: clamp(10px, calc(2.34vmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
+    font-size: clamp(10px, calc(7.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
@@ -785,8 +854,8 @@ body.is-offline .deck-grid {
     align-items: baseline;
     gap: 8px;
     font-weight: 700;
-    font-size: clamp(11px, calc(2.81vmin * var(--key-font-scale)), 34px);
-    font-size: clamp(11px, calc(9cqmin * var(--key-font-scale)), 34px);
+    font-size: clamp(11px, calc(2.81vmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
+    font-size: clamp(11px, calc(9cqmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
     font-variant-numeric: tabular-nums;
 }
 
@@ -864,6 +933,103 @@ body.is-offline .deck-grid {
 .deck-key.key-image-fill .key-title:empty {
     display: none;
 }
+
+/* Fader deitado: ícone e título em cima, trilho atravessado embaixo (arrasta para o lado) */
+.deck-key.key-wide {
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 10px 14px;
+}
+
+.deck-key.key-wide .key-icon {
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    margin: 0;
+}
+
+.deck-key.key-wide .key-title {
+    position: absolute;
+    top: 12px;
+    left: 50px;
+    right: 64px;
+    width: auto;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1;
+}
+
+.deck-key.key-wide.has-auto-btn .key-title {
+    left: 64px;
+}
+
+.deck-key.key-wide .key-badge {
+    top: 10px;
+    right: 14px;
+}
+
+/* Seletor duplo: vence a regra base .key-slider-track (em pé), declarada depois */
+.key-slider-track.key-slider-track-h {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: auto;
+    bottom: 12px;
+    height: 34%;
+    max-height: 44px;
+    width: auto;
+    max-width: none;
+    transform: none;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.key-slider-track.key-slider-track-h .key-slider-fill {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: auto;
+    height: 100%;
+    border-top: 0;
+    border-right: 2px solid var(--accent);
+    border-radius: 999px 0 0 999px;
+    transition: width var(--dur-fast) ease;
+}
+
+/* Spotify: controles em cima e o volume do Spotify deitado embaixo, num bloco só */
+.deck-key.key-mixer .key-transport-bar {
+    bottom: auto;
+    top: 6%;
+    height: 54%;
+}
+
+.deck-key.key-mixer .key-transport-btn {
+    height: 78%;
+}
+
+.deck-key.key-mixer .key-title {
+    display: none;
+}
+
+.deck-key.key-mixer .key-badge {
+    top: auto;
+    bottom: 13px;
+    right: 20px;
+    z-index: 2;
+}
+
+.deck-key.key-mixer .key-slider-track.key-slider-track-h {
+    height: 26%;
+    bottom: 10px;
+}
+
+/* Telemetria: --stat-font (inline, 0.5 a 2.5) multiplica as fontes do bloco */
 
 /* Fader alto (2 linhas): trilho estreito no centro, ícone em cima, título embaixo */
 .deck-key.key-tall {
@@ -1648,6 +1814,7 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
 .no-flex-gap .stat-card > * + * { margin-top: 4px; }
 .no-flex-gap .stat-content > * + * { margin-left: 8px; }
 .no-flex-gap .deck-overlay-card > * + * { margin-top: var(--space-2); }
+.no-flex-gap .pair-form > * + * { margin-left: var(--space-2); }
 .no-flex-gap .key-stat > * + * { margin-top: 2px; }
 .no-flex-gap .key-stat-head > * + * { margin-left: 8px; }
 .no-flex-gap .key-stat-rows > * + * { margin-top: 2px; }

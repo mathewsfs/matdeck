@@ -894,6 +894,11 @@ try {
 
 function _regenerator() { var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i.return) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
 function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); } r ? i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n : (o("next", 0), o("throw", 1), o("return", 2)); }, _regeneratorDefine2(e, r, n, t); }
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+function _toPrimitive(t, e) { if ("object" != _typeof(t) || !t) return t; var r; if ("undefined" != typeof Symbol && void 0 !== (r = t[Symbol.toPrimitive])) { var i = r.call(t, e || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === e ? String : Number)(t); }
 function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t.return || t.return(); } finally { if (u) throw o; } } }; }
 function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
 function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
@@ -955,6 +960,12 @@ var gridEl = $('deck-grid');
 var deckOverlay = $('deck-overlay');
 var deckOverlayTitle = $('deck-overlay-title');
 var deckOverlaySub = $('deck-overlay-sub');
+var deckOverlayMain = $('deck-overlay-main');
+var pairCard = $('pair-card');
+var pairForm = $('pair-form');
+var pairPin = $('pair-pin');
+var pairSubmit = $('pair-submit');
+var pairStatus = $('pair-status');
 var swipeLabel = $('swipe-label');
 var hardwareHud = $('hardware-hud');
 var connDot = $('conn-dot');
@@ -1238,7 +1249,7 @@ function initWebSocket() {
   ws.onclose = function () {
     setConnectionState('offline');
     cancelAllDrags();
-    if (!wsReconnectTimer) wsReconnectTimer = setTimeout(initWebSocket, 2500);
+    if (!wsReconnectTimer) wsReconnectTimer = setTimeout(startSession, 2500);
   };
   ws.onerror = function () {
     try {
@@ -1247,13 +1258,16 @@ function initWebSocket() {
   };
 }
 function layoutDump() {
-  var props = ['display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'flex', 'width', 'height', 'fontSize', 'padding'];
+  var props = ['display', 'position', 'flexDirection', 'justifyContent', 'alignItems', 'flex', 'width', 'height', 'fontSize', 'padding', 'textAlign', 'objectFit', 'objectPosition', 'transform', 'marginLeft'];
   var _node = function node(el, depth) {
     var r = el.getBoundingClientRect();
     var cs = getComputedStyle(el);
     var out = {
       c: (el.getAttribute('class') || el.tagName).slice(0, 70),
-      r: [r.left, r.top, r.width, r.height].map(Math.round)
+      r: [r.left, r.top, r.width, r.height].map(Math.round),
+      sw: el.scrollWidth,
+      cw: el.clientWidth,
+      t: el.children.length ? '' : (el.textContent || '').slice(0, 30)
     };
     for (var _i = 0, _props = props; _i < _props.length; _i++) {
       var p = _props[_i];
@@ -1425,7 +1439,7 @@ function spanOf(cfg) {
   };
 }
 function isTallKey(cfg) {
-  if (!cfg || !isSliderKey(cfg)) return false;
+  if (!cfg || !isSliderKey(cfg) || isWideKey(cfg)) return false;
   var sp = spanOf(cfg);
   return sp.rows > 1 && sp.cols === 1;
 }
@@ -1524,8 +1538,14 @@ function renderSkeletonGrid() {
 function isKeyMuted(cfg) {
   return cfg.bgColor === '#DC2626' || cfg.badge === 'MUDO' || cfg.badge === 'MUTADO' || cfg.title && cfg.title.toUpperCase().includes('MUTADO');
 }
+function isHoldKey(cfg) {
+  return /^(discord:ptt|ts:ptt|ts:whisper)$/.test(String(cfg && cfg.actionId || ''));
+}
 function isSliderKey(cfg) {
-  return !!(cfg.isSlider || cfg.actionId && cfg.actionId.startsWith('vol_slider:'));
+  return !!(cfg.isSlider || cfg.actionId && (cfg.actionId.startsWith('vol_slider:') || cfg.actionId === 'spotify:mixer'));
+}
+function isWideKey(cfg) {
+  return !!cfg && isSliderKey(cfg) && (cfg.sliderDir === 'h' || cfg.actionId === 'spotify:mixer');
 }
 function isDarkColor(hex) {
   var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
@@ -1537,7 +1557,7 @@ function isDarkColor(hex) {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.5;
 }
 function isStatKey(cfg) {
-  return !!(cfg && (cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:')) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel'));
+  return !!(cfg && (cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:')) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel' || cfg.actionId === 'discord:voice_room'));
 }
 function escHtml(s) {
   return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -1575,8 +1595,22 @@ function statChartSvg(cfg, prefix) {
   var c1 = cfg.statColor || '#3B82F6';
   var c2 = cfg.statColor2 || '#EC4899';
   var out = "<svg class=\"".concat(prefix, "-chart-svg\" viewBox=\"0 0 ").concat(W, " ").concat(H, "\" preserveAspectRatio=\"none\" aria-hidden=\"true\">");
+  var kind = cfg.statChart === 'line' || cfg.statChart === 'bars' ? cfg.statChart : 'area';
+  if (kind === 'bars') {
+    var bars = function bars(hist, color, opacity) {
+      var n = hist.length;
+      if (!n) return '';
+      var step = W / N;
+      var bw = Math.max(0.6, step * 0.7);
+      return hist.map(function (v, i) {
+        var bh = Math.min(H, Math.max(0, (v - min) / span) * H);
+        return "<rect x=\"".concat((W - (n - i) * step + (step - bw) / 2).toFixed(2), "\" y=\"").concat((H - bh).toFixed(2), "\" width=\"").concat(bw.toFixed(2), "\" height=\"").concat(Math.max(0.5, bh).toFixed(2), "\" fill=\"").concat(color, "\" fill-opacity=\"").concat(opacity, "\"/>");
+      }).join('');
+    };
+    return out + bars(h1, c1, h2.length ? 0.9 : 1) + bars(h2, c2, 0.75) + '</svg>';
+  }
   var l1 = line(h1);
-  if (l1) out += "<polygon points=\"".concat(l1.xStart, ",").concat(H, " ").concat(l1.pts, " ").concat(W, ",").concat(H, "\" fill=\"").concat(c1, "\" fill-opacity=\"0.28\"/><polyline points=\"").concat(l1.pts, "\" fill=\"none\" stroke=\"").concat(c1, "\" stroke-width=\"1.6\" vector-effect=\"non-scaling-stroke\" stroke-linejoin=\"round\"/>");
+  if (l1) out += (kind === 'area' ? "<polygon points=\"".concat(l1.xStart, ",").concat(H, " ").concat(l1.pts, " ").concat(W, ",").concat(H, "\" fill=\"").concat(c1, "\" fill-opacity=\"0.28\"/>") : '') + "<polyline points=\"".concat(l1.pts, "\" fill=\"none\" stroke=\"").concat(c1, "\" stroke-width=\"1.6\" vector-effect=\"non-scaling-stroke\" stroke-linejoin=\"round\"/>");
   var l2 = line(h2);
   if (l2) out += "<polyline points=\"".concat(l2.pts, "\" fill=\"none\" stroke=\"").concat(c2, "\" stroke-width=\"1.6\" vector-effect=\"non-scaling-stroke\" stroke-linejoin=\"round\"/>");
   return out + '</svg>';
@@ -1606,6 +1640,10 @@ function statBarsSvg(cfg, prefix) {
 function statInnerHtml(cfg, prefix) {
   var mode = cfg.statMode || (Array.isArray(cfg.statHistory) ? 'graph' : 'bar');
   var color = cfg.statColor || cfg.badgeColor || '';
+  if (cfg.statSwap && cfg.statBig !== undefined && cfg.statBig !== null && cfg.statHead) cfg = _objectSpread(_objectSpread({}, cfg), {}, {
+    statBig: cfg.statHead,
+    statHead: cfg.statBig
+  });
   var html = "<div class=\"".concat(prefix, "-head\"><span class=\"").concat(prefix, "-label\">").concat(escHtml(cfg.statLabel || cfg.title || ''), "</span><span class=\"").concat(prefix, "-headval\">").concat(escHtml(cfg.statHead !== undefined ? cfg.statHead : cfg.statSub || ''), "</span></div>");
   if (mode === 'meters' && Array.isArray(cfg.statRows)) {
     html += "<div class=\"".concat(prefix, "-meters\">") + cfg.statRows.map(function (r) {
@@ -1623,7 +1661,7 @@ function statInnerHtml(cfg, prefix) {
     html += "<div class=\"".concat(prefix, "-big\">").concat(escHtml(cfg.statValue), "</div>");
   }
   if (cfg.statSub && mode !== 'dual') html += "<div class=\"".concat(prefix, "-sub\" style=\"color:").concat(escHtml(color), "\">").concat(escHtml(cfg.statSub), "</div>");
-  if (mode === 'graph' || mode === 'dual') html += "<div class=\"".concat(prefix, "-chart\">").concat(statChartSvg(cfg, prefix), "</div>");else if (mode === 'cores') html += "<div class=\"".concat(prefix, "-chart ").concat(prefix, "-chart-tall\">").concat(statBarsSvg(cfg, prefix), "</div>");else if (cfg.statPercent !== undefined && cfg.statPercent !== null) html += "<div class=\"".concat(prefix, "-bar\"><i style=\"width:").concat(Math.max(0, Math.min(100, Number(cfg.statPercent) || 0)), "%;background:").concat(escHtml(color), "\"></i></div>");
+  if ((mode === 'graph' || mode === 'dual') && cfg.statChart !== 'none') html += "<div class=\"".concat(prefix, "-chart\">").concat(statChartSvg(cfg, prefix), "</div>");else if (mode === 'cores') html += "<div class=\"".concat(prefix, "-chart ").concat(prefix, "-chart-tall\">").concat(statBarsSvg(cfg, prefix), "</div>");else if (cfg.statPercent !== undefined && cfg.statPercent !== null) html += "<div class=\"".concat(prefix, "-bar\"><i style=\"width:").concat(Math.max(0, Math.min(100, Number(cfg.statPercent) || 0)), "%;background:").concat(escHtml(color), "\"></i></div>");
   return html;
 }
 function renderStatContent(el, cfg) {
@@ -1635,6 +1673,8 @@ function renderStatContent(el, cfg) {
   }
   var mode = cfg.statMode || 'bar';
   box.className = "key-stat mode-".concat(mode);
+  var fontScale = statFontScale(cfg);
+  box.style.setProperty('--stat-font', fontScale === 1 ? '' : String(fontScale));
   var customText = cfg.titleColor && !isKeyMuted(cfg);
   box.style.color = customText ? cfg.titleColor : '';
   if (customText) box.classList.add('has-text-color');
@@ -1643,6 +1683,20 @@ function renderStatContent(el, cfg) {
     return;
   }
   box.innerHTML = statInnerHtml(cfg, 'key-stat');
+  if (NO_GRID && fontScale !== 1) {
+    var texts = box.querySelectorAll('.key-stat-label, .key-stat-headval, .key-stat-big, .key-stat-sub, .key-stat-rowk, .key-stat-rowv, .key-stat-meter-k, .key-stat-meter-v, .key-stat-meter-sub');
+    for (var i = 0; i < texts.length; i++) {
+      var px = parseFloat(window.getComputedStyle(texts[i]).fontSize);
+      if (px) texts[i].style.fontSize = "".concat(Math.round(px * fontScale * 10) / 10, "px");
+    }
+  }
+}
+function statFontScale(cfg) {
+  var v = cfg && cfg.statFont;
+  if (v === 's') return 0.8;
+  if (v === 'l') return 1.25;
+  var n = Number(v);
+  return n > 0 ? Math.min(2.5, Math.max(0.5, n)) : 1;
 }
 function renderMediaContent(box, cfg) {
   if (!box.querySelector('.key-stat-media-title')) {
@@ -1771,6 +1825,7 @@ function applyIconScale(el, cfg) {
     base = m ? Math.max(36, Math.min(160, m * 0.22)) : 36;
   }
   if (el.classList.contains('has-auto-btn')) base = tall ? 30 : 26;
+  if (isWideKey(cfg)) base = 26;
   var px = Math.round(base * scale);
   img.style.width = "".concat(px, "px");
   img.style.height = "".concat(px, "px");
@@ -1795,14 +1850,16 @@ window.addEventListener('resize', function () {
   return requestAnimationFrame(fitAllIcons);
 });
 function sliderAppOf(cfg) {
-  return cfg.sliderApp || (cfg.actionId ? cfg.actionId.replace('vol_slider:', '') : 'master');
+  if (cfg.sliderApp) return cfg.sliderApp;
+  if (cfg.actionId && cfg.actionId.startsWith('spotify:')) return 'spotify';
+  return cfg.actionId ? cfg.actionId.replace('vol_slider:', '') : 'master';
 }
 function createKeyElement(cfg) {
   var el = document.createElement('div');
   var muted = isKeyMuted(cfg);
   var isSlider = isSliderKey(cfg);
-  var hasAction = !!(cfg.actionId || cfg.title || isSlider);
-  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') + (isTallKey(cfg) ? ' key-tall' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
+  var hasAction = !!(cfg.actionId || cfg.title || isSlider || cfg.imageFill && cfg.icon);
+  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') + (isTallKey(cfg) ? ' key-tall' : '') + (isWideKey(cfg) ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
   el.id = "deck-key-".concat(cfg.index);
   el.setAttribute('role', isSlider ? 'slider' : 'button');
   el.tabIndex = 0;
@@ -1814,19 +1871,27 @@ function createKeyElement(cfg) {
     var fill = document.createElement('div');
     fill.className = 'key-slider-fill';
     var val = cfg.sliderValue !== undefined ? cfg.sliderValue : 80;
-    fill.style.height = "".concat(val, "%");
-    if (isTallKey(cfg)) {
+    if (isWideKey(cfg)) {
+      fill.style.height = '100%';
+      fill.style.width = "".concat(val, "%");
       var track = document.createElement('div');
-      track.className = 'key-slider-track';
+      track.className = 'key-slider-track key-slider-track-h';
       track.appendChild(fill);
       el.appendChild(track);
+    } else if (isTallKey(cfg)) {
+      fill.style.height = "".concat(val, "%");
+      var _track = document.createElement('div');
+      _track.className = 'key-slider-track';
+      _track.appendChild(fill);
+      el.appendChild(_track);
     } else {
+      fill.style.height = "".concat(val, "%");
       el.appendChild(fill);
     }
     el.setAttribute('aria-valuemin', '0');
     el.setAttribute('aria-valuemax', '100');
     el.setAttribute('aria-valuenow', String(val));
-    el.setAttribute('aria-orientation', 'vertical');
+    el.setAttribute('aria-orientation', isWideKey(cfg) ? 'horizontal' : 'vertical');
   }
   if (isStatKey(cfg)) {
     renderStatContent(el, cfg);
@@ -1860,7 +1925,7 @@ function createKeyElement(cfg) {
   return el;
 }
 function syncTransport(el, cfg) {
-  var wants = !!cfg.transport || cfg.actionId === 'spotify:transport' || cfg.actionId === 'player:transport';
+  var wants = !!cfg.transport || cfg.actionId === 'spotify:transport' || cfg.actionId === 'player:transport' || cfg.actionId === 'spotify:mixer';
   var bar = el.querySelector('.key-transport-bar');
   if (cfg.actionId) el.dataset.transportPrefix = String(cfg.actionId).split(':')[0];
   el.classList.toggle('key-transport', wants);
@@ -1974,8 +2039,11 @@ function applyKeyAccessibleName(el, cfg) {
 }
 function attachKeyInteraction(el, cfg) {
   var isSlider = isSliderKey(cfg);
+  var wide = isWideKey(cfg);
+  var hold = isHoldKey(cfg);
   var appId = sliderAppOf(cfg);
   var pointerDown = false;
+  var holdActive = false;
   var dragging = false;
   var dragAxis = null;
   var startX = 0;
@@ -1988,7 +2056,9 @@ function attachKeyInteraction(el, cfg) {
   var paintPercent = function paintPercent(percent) {
     lastShownValue = percent;
     var fill = el.querySelector('.key-slider-fill');
-    if (fill) fill.style.height = "".concat(percent, "%");
+    if (fill) {
+      if (wide) fill.style.width = "".concat(percent, "%");else fill.style.height = "".concat(percent, "%");
+    }
     var badge = el.querySelector('.key-badge');
     if (badge) badge.textContent = "".concat(percent, "%");
     el.setAttribute('aria-valuenow', String(percent));
@@ -2022,6 +2092,16 @@ function attachKeyInteraction(el, cfg) {
     if (!rect.height) return lastShownValue;
     return clamp(Math.round((1 - (clientY - rect.top) / rect.height) * 100), 0, 100);
   };
+  var percentFromX = function percentFromX(clientX) {
+    var rect = (el.querySelector('.key-slider-track') || el).getBoundingClientRect();
+    if (!rect.width) return lastShownValue;
+    return clamp(Math.round((clientX - rect.left) / rect.width * 100), 0, 100);
+  };
+  var releaseHold = function releaseHold() {
+    if (!holdActive) return;
+    holdActive = false;
+    sendKeyEvent('keyUp', cfg.index);
+  };
   var _cleanup = function cleanup() {
     pointerDown = false;
     activePointerId = null;
@@ -2033,10 +2113,14 @@ function attachKeyInteraction(el, cfg) {
     activeDragCleanups.delete(_cleanup);
   };
   var isVolumeDrag = function isVolumeDrag() {
-    return isSlider && dragAxis === 'y';
+    return isSlider && dragAxis === (wide ? 'x' : 'y');
   };
   var onMove = function onMove(e) {
     if (!pointerDown || e.pointerId !== activePointerId) return;
+    if (hold) {
+      e.preventDefault();
+      return;
+    }
     var dx = Math.abs(e.clientX - startX);
     var dy = Math.abs(e.clientY - startY);
     if (!dragging) {
@@ -2046,7 +2130,7 @@ function attachKeyInteraction(el, cfg) {
     }
     if (!isVolumeDrag()) return;
     el.classList.add('is-dragging');
-    var percent = percentFromY(e.clientY);
+    var percent = wide ? percentFromX(e.clientX) : percentFromY(e.clientY);
     paintPercent(percent);
     sendVolume(percent, false);
     e.preventDefault();
@@ -2056,6 +2140,10 @@ function attachKeyInteraction(el, cfg) {
     var wasDragging = dragging;
     var wasVolume = isVolumeDrag();
     _cleanup();
+    if (hold) {
+      releaseHold();
+      return;
+    }
     if (wasDragging) {
       if (wasVolume) sendVolume(lastShownValue, true);
       return;
@@ -2073,6 +2161,7 @@ function attachKeyInteraction(el, cfg) {
     if (!pointerDown) return;
     var wasVolume = dragging && isVolumeDrag();
     _cleanup();
+    releaseHold();
     if (wasVolume) sendVolume(lastShownValue, true);
   };
   el.addEventListener('pointerdown', function (e) {
@@ -2096,6 +2185,12 @@ function attachKeyInteraction(el, cfg) {
     window.addEventListener('blur', onCancel);
     activeDragCleanups.add(_cleanup);
     e.preventDefault();
+    if (hold) {
+      if (sendKeyEvent('keyDown', cfg.index)) holdActive = true;else toast('Sem conexão com o servidor.', {
+        type: 'error',
+        duration: 2500
+      });
+    }
   });
   el.addEventListener('contextmenu', function (e) {
     return e.preventDefault();
@@ -2103,6 +2198,14 @@ function attachKeyInteraction(el, cfg) {
   el.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
+      if (hold) {
+        if (e.repeat || holdActive) return;
+        if (sendKeyEvent('keyDown', cfg.index)) holdActive = true;else toast('Sem conexão com o servidor.', {
+          type: 'error',
+          duration: 2500
+        });
+        return;
+      }
       if (sendKeyEvent('keyDown', cfg.index)) sendKeyEvent('keyUp', cfg.index);else toast('Sem conexão com o servidor.', {
         type: 'error',
         duration: 2500
@@ -2118,6 +2221,12 @@ function attachKeyInteraction(el, cfg) {
     paintPercent(next);
     sendVolume(next, true);
   });
+  el.addEventListener('keyup', function (e) {
+    if (hold && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      releaseHold();
+    }
+  });
 }
 function updateSingleKeyUI(index) {
   var el = document.getElementById("deck-key-".concat(index));
@@ -2129,7 +2238,7 @@ function updateSingleKeyUI(index) {
   var isSlider = isSliderKey(cfg);
   var pressed = el.classList.contains('is-pressed');
   var draggingNow = el.classList.contains('is-dragging');
-  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track') ? ' key-tall' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') + (spanOf(cfg).cols > 1 || spanOf(cfg).rows > 1 ? ' key-span' : '');
+  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track:not(.key-slider-track-h)') ? ' key-tall' : '') + (el.querySelector('.key-slider-track-h') ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') + (spanOf(cfg).cols > 1 || spanOf(cfg).rows > 1 ? ' key-span' : '');
   applyKeyAccessibleName(el, cfg);
   if (isStatKey(cfg)) {
     if (!muted) {
@@ -2155,7 +2264,7 @@ function updateSingleKeyUI(index) {
     }
     if (!draggingNow) {
       var val = cfg.sliderValue !== undefined ? cfg.sliderValue : 80;
-      fill.style.height = "".concat(val, "%");
+      if (isWideKey(cfg)) fill.style.width = "".concat(val, "%");else fill.style.height = "".concat(val, "%");
       el.setAttribute('aria-valuenow', String(val));
     }
   } else if (fill) {
@@ -2681,6 +2790,227 @@ function _pollStatus() {
   }));
   return _pollStatus.apply(this, arguments);
 }
+var statusTimer = null;
+var pairSession = null;
+var pairTimer = null;
+function startSession() {
+  return _startSession.apply(this, arguments);
+}
+function _startSession() {
+  _startSession = _asyncToGenerator(_regenerator().m(function _callee4() {
+    var res;
+    return _regenerator().w(function (_context4) {
+      while (1) switch (_context4.n) {
+        case 0:
+          if (wsReconnectTimer) {
+            clearTimeout(wsReconnectTimer);
+            wsReconnectTimer = null;
+          }
+          _context4.n = 1;
+          return apiFetch('/api/session');
+        case 1:
+          res = _context4.v;
+          if (!(res.ok && res.data && res.data.role === 'guest')) {
+            _context4.n = 2;
+            break;
+          }
+          showPairing();
+          return _context4.a(2);
+        case 2:
+          hidePairing();
+          initWebSocket();
+          pollStatus();
+          if (!statusTimer) statusTimer = setInterval(pollStatus, 5000);
+        case 3:
+          return _context4.a(2);
+      }
+    }, _callee4);
+  }));
+  return _startSession.apply(this, arguments);
+}
+function setPairStatus(text, kind) {
+  pairStatus.textContent = text || '';
+  pairStatus.className = 'pair-status' + (kind ? ' is-' + kind : '');
+}
+function showPairing() {
+  if (statusTimer) {
+    clearInterval(statusTimer);
+    statusTimer = null;
+  }
+  document.body.classList.add('is-offline');
+  setHidden(deckOverlayMain, true);
+  setHidden(pairCard, false);
+  setHidden(deckOverlay, false);
+  gridEl.setAttribute('aria-busy', 'true');
+  pairPin.value = '';
+  pairStart();
+}
+function hidePairing() {
+  if (pairTimer) {
+    clearTimeout(pairTimer);
+    pairTimer = null;
+  }
+  pairSession = null;
+  setHidden(pairCard, true);
+  setHidden(deckOverlayMain, false);
+}
+function pairRetryIn(ms) {
+  if (pairTimer) clearTimeout(pairTimer);
+  pairTimer = setTimeout(pairStart, Math.max(1000, ms));
+}
+function pairStart() {
+  return _pairStart.apply(this, arguments);
+}
+function _pairStart() {
+  _pairStart = _asyncToGenerator(_regenerator().m(function _callee5() {
+    var res, d, wait;
+    return _regenerator().w(function (_context5) {
+      while (1) switch (_context5.n) {
+        case 0:
+          if (pairTimer) {
+            clearTimeout(pairTimer);
+            pairTimer = null;
+          }
+          pairSession = null;
+          pairSubmit.disabled = true;
+          setPairStatus('Pedindo um PIN ao computador…');
+          _context5.n = 1;
+          return apiFetch('/api/pair/start', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: '{}'
+          });
+        case 1:
+          res = _context5.v;
+          d = res.data || {};
+          if (!(res.ok && d.id)) {
+            _context5.n = 2;
+            break;
+          }
+          pairSession = d.id;
+          pairSubmit.disabled = false;
+          setPairStatus('O PIN está no gerenciador do computador. Vale por ' + Math.round((d.ttlMs || 120000) / 60000) + ' min.');
+          pairRetryIn((d.ttlMs || 120000) + 500);
+          try {
+            pairPin.focus();
+          } catch (e) {}
+          return _context5.a(2);
+        case 2:
+          if (!(res.status === 429)) {
+            _context5.n = 3;
+            break;
+          }
+          wait = d.retryAfterMs || 30000;
+          setPairStatus('Muitas tentativas. Um PIN novo em ' + Math.ceil(wait / 1000) + ' s.', 'error');
+          pairRetryIn(wait + 300);
+          return _context5.a(2);
+        case 3:
+          if (!(res.status === 400)) {
+            _context5.n = 4;
+            break;
+          }
+          hidePairing();
+          startSession();
+          return _context5.a(2);
+        case 4:
+          setPairStatus(res.status ? d.error || 'O computador recusou o pedido. Tentando de novo…' : 'Sem resposta do computador. Tentando de novo…', 'error');
+          pairRetryIn(3000);
+        case 5:
+          return _context5.a(2);
+      }
+    }, _callee5);
+  }));
+  return _pairStart.apply(this, arguments);
+}
+function pairVerify(_x3) {
+  return _pairVerify.apply(this, arguments);
+}
+function _pairVerify() {
+  _pairVerify = _asyncToGenerator(_regenerator().m(function _callee6(e) {
+    var pin, res, d, wait;
+    return _regenerator().w(function (_context6) {
+      while (1) switch (_context6.n) {
+        case 0:
+          if (e && e.preventDefault) e.preventDefault();
+          pin = String(pairPin.value || '').replace(/\D/g, '');
+          if (!(pin.length !== 4)) {
+            _context6.n = 1;
+            break;
+          }
+          setPairStatus('Digite os 4 dígitos do PIN.', 'error');
+          return _context6.a(2);
+        case 1:
+          if (pairSession) {
+            _context6.n = 2;
+            break;
+          }
+          pairStart();
+          return _context6.a(2);
+        case 2:
+          pairSubmit.disabled = true;
+          setPairStatus('Conferindo…');
+          _context6.n = 3;
+          return apiFetch('/api/pair/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              id: pairSession,
+              pin: pin
+            })
+          });
+        case 3:
+          res = _context6.v;
+          d = res.data || {};
+          if (!(res.ok && d.success)) {
+            _context6.n = 4;
+            break;
+          }
+          if (pairTimer) {
+            clearTimeout(pairTimer);
+            pairTimer = null;
+          }
+          setPairStatus('Conectado! Carregando o deck…', 'ok');
+          setTimeout(function () {
+            return location.reload();
+          }, 400);
+          return _context6.a(2);
+        case 4:
+          pairPin.value = '';
+          if (res.status === 401) {
+            setPairStatus('PIN incorreto. ' + (d.attemptsLeft || 0) + ' tentativa(s) restante(s).', 'error');
+            pairSubmit.disabled = false;
+            try {
+              pairPin.focus();
+            } catch (e2) {}
+          } else if (res.status === 410) {
+            setPairStatus('Esse PIN venceu. Pedindo um novo…', 'error');
+            pairRetryIn(600);
+          } else if (res.status === 429) {
+            wait = d.retryAfterMs || 30000;
+            setPairStatus('Muitas tentativas. Um PIN novo em ' + Math.ceil(wait / 1000) + ' s.', 'error');
+            pairRetryIn(wait + 300);
+          } else if (res.status === 400) {
+            hidePairing();
+            startSession();
+          } else {
+            setPairStatus(d.error || 'Não foi possível conferir o PIN. Tente de novo.', 'error');
+            pairSubmit.disabled = false;
+          }
+        case 5:
+          return _context6.a(2);
+      }
+    }, _callee6);
+  }));
+  return _pairVerify.apply(this, arguments);
+}
+pairForm.addEventListener('submit', pairVerify);
+pairPin.addEventListener('input', function () {
+  if (!pairSubmit.disabled && String(pairPin.value || '').replace(/\D/g, '').length === 4) pairVerify();
+});
 renderSkeletonGrid();
 applyTheme(storageGet(THEME_KEY) === 'light' ? 'light' : 'dark');
 applyFontSize(storageGet(FONT_KEY) || 'm');
@@ -2695,7 +3025,5 @@ window.addEventListener('resize', syncViewportHeight);
 window.addEventListener('orientationchange', function () {
   setTimeout(syncViewportHeight, 300);
 });
-initWebSocket();
-pollStatus();
-setInterval(pollStatus, 5000);
+startSession();
 window.MATDECK_APP_BOOTED = true;

@@ -88,10 +88,20 @@
         <main class="deck-grid-wrap" id="deck-grid-wrap">
             <div class="deck-grid" id="deck-grid" role="group" aria-label="Teclas do deck" aria-busy="true"></div>
             <div class="deck-overlay" id="deck-overlay" hidden>
-                <div class="deck-overlay-card">
+                <div class="deck-overlay-card" id="deck-overlay-main">
                     <span class="spinner" aria-hidden="true"></span>
                     <p class="deck-overlay-title" id="deck-overlay-title">Conectando ao servidor...</p>
                     <p class="deck-overlay-sub" id="deck-overlay-sub">As teclas aparecem assim que o MatDeck responder.</p>
+                </div>
+                <!-- Dispositivo da rede ainda não emparelhado: o PIN aparece no gerenciador, no computador -->
+                <div class="deck-overlay-card pair-card" id="pair-card" hidden>
+                    <p class="deck-overlay-title">Conectar a este computador</p>
+                    <p class="deck-overlay-sub">Abra o gerenciador do MatDeck no computador: o PIN deste aparelho aparece lá. Digite-o aqui uma vez; o aparelho fica lembrado.</p>
+                    <form class="pair-form" id="pair-form" autocomplete="off" novalidate>
+                        <input class="pair-input" id="pair-pin" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="····" aria-label="PIN de 4 dígitos" autocomplete="off">
+                        <button type="submit" class="pair-btn" id="pair-submit">Conectar</button>
+                    </form>
+                    <p class="pair-status" id="pair-status" role="status" aria-live="polite"></p>
                 </div>
             </div>
             <div class="swipe-label" id="swipe-label" role="status" aria-live="polite" hidden></div>
