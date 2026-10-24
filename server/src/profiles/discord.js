@@ -40,8 +40,8 @@ class DiscordProfile {
                 { index: 0, ...this.micKey() },
                 { index: 1, ...this.deafenKey() },
                 { index: 2, title: 'Push to Talk', icon: icons.ptt, actionId: 'discord:ptt', badge: 'PTT', badgeColor: '#5865F2' },
-                { index: 3, title: 'Focar Discord', icon: icons.focus, actionId: 'discord:focus' },
-                { index: 4, title: 'Abrir Discord', icon: icons.discord, actionId: 'discord:open', borderColor: '#5865F2' },
+                { index: 3, title: 'Discord', icon: icons.discord, actionId: 'discord:open', borderColor: '#5865F2' },
+                { index: 4, title: '' },
 
                 // Linha 2 — navegação (atalhos padrão do Discord)
                 { index: 5, title: 'Busca Rápida', icon: icons.grid, actionId: 'discord:quick_switcher', badge: 'Ctrl+K', badgeColor: '#4B5563' },
@@ -93,6 +93,70 @@ class DiscordProfile {
         this.ctx.updateKey('discord', 1, this.deafenKey());
     }
 
+    get rpc() {
+        return this.ctx && this.ctx.discordRpc;
+    }
+
+    rpcReady() {
+        return !!(this.rpc && this.rpc.ready);
+    }
+
+    /** Estado real vindo do Discord (IPC). */
+    applyVoice(v) {
+        if (!v) return;
+        this.isMuted = !!v.mute;
+        this.isDeafened = !!v.deaf;
+        this.refreshKeys();
+    }
+
+    /** Bloco "Sala de voz": sala atual, meu estado e quem está nela (modo meters: barra cheia = falando). */
+    roomKey(key) {
+        const room = this.rpc ? this.rpc.roomSnapshot() : { available: false, members: [] };
+        const base = { statMode: 'meters', statColor: '#5865F2', statHistory: null, statBars: null, statSub: null, statPercent: null, badge: null, active: false };
+        if (!room.available) return { ...base, statLabel: 'Discord', statHead: 'sem API', statRows: [{ k: 'Configure em Ajustes', sub: '', v: '', pct: 0 }], title: 'Discord' };
+        if (!room.inVoice) return { ...base, statLabel: 'Discord', statHead: 'fora de chamada', statRows: [], title: 'Discord' };
+        const rowSpan = Math.max(1, parseInt(key && key.rowSpan, 10) || 1);
+        const max = rowSpan * 3 + (rowSpan > 1 ? 1 : 0);      // 3 nomes numa tecla simples, 7 numa 2x2
+        const me = room.members.find((m) => m.me);
+        const rows = room.members.slice(0, max).map((m) => ({
+            k: m.me ? 'Você' : m.name,
+            sub: m.speaking ? 'falando' : (m.deaf ? 'surdo' : (m.mute ? 'mudo' : '')),
+            v: '',
+            pct: m.speaking ? 100 : 0,
+            color: m.speaking ? '#22C55E' : '#374151'
+        }));
+        if (room.members.length > max) rows[max - 1] = { k: `+${room.members.length - max + 1} pessoas`, sub: '', v: '', pct: 0, color: '#374151' };
+        const speaking = room.members.filter((m) => m.speaking && !m.me).length;
+        return {
+            ...base,
+            statLabel: room.channelName,
+            statHead: `${room.members.length} na sala`,
+            statRows: rows,
+            statColor: me && me.speaking ? '#22C55E' : '#5865F2',
+            badge: me ? (me.deaf ? 'SURDO' : (me.mute ? 'MUDO' : null)) : null,
+            badgeColor: '#7F1D1D',
+            active: speaking > 0,
+            title: room.channelName
+        };
+    }
+
+    getStatus() {
+        const st = this.rpc ? this.rpc.getStatus() : { connected: false, authenticated: false, needsSetup: true };
+        return { ...st, muted: this.isMuted, deafened: this.isDeafened, mode: st.authenticated ? 'ipc' : 'keyboard' };
+    }
+
+    /** Mute/surdo pela API; devolve false quando a API não está disponível (cai para o atalho). */
+    async rpcVoice(field, value) {
+        if (!this.rpcReady()) return false;
+        try {
+            if (field === 'mute') await this.rpc.setMute(value); else await this.rpc.setDeaf(value);
+            return true;
+        } catch (e) {
+            console.log(`[Discord] IPC falhou (${e.message}); usando atalho de teclado`);
+            return false;
+        }
+    }
+
     async sendShortcut(combo) {
         const cfg = this.getConfig();
         return SystemActions.focusAndSend(DISCORD_WINDOW, combo, cfg.focusDelayMs)
@@ -109,19 +173,28 @@ class DiscordProfile {
         return SystemActions.launchFile('xdg-open', ['discord://']);
     }
 
+    /** Solta o push-to-talk se o tablet sumiu com a tecla pressionada (mic não fica aberto). */
+    releaseHeld() {
+        if (this.pttHeld) this.handleAction('discord:ptt', 'keyUp');
+    }
+
     handleAction(actionId, eventType) {
         const cfg = this.getConfig();
 
         // PTT precisa de keyDown e keyUp
         if (actionId === 'discord:ptt') {
+            // Pela API (Discord em modo de voz por atividade): segurar = desmutar, soltar = mutar.
+            // Em modo Push to Talk no Discord, ou sem API, segura a tecla de atalho configurada.
             if (eventType === 'keyDown' && !this.pttHeld) {
                 this.pttHeld = true;
+                // Decidido ao apertar e mantido até soltar, para não desmutar pela API e "soltar" pelo teclado
+                this.pttViaRpc = !!(this.rpcReady() && this.rpc.voice && this.rpc.voice.mode !== 'PUSH_TO_TALK');
                 this.ctx.updateKey('discord', 2, { bgColor: '#16A34A', borderColor: '#4ADE80', badge: 'FALANDO', badgeColor: '#14532D', active: true });
-                SystemActions.keyHold(cfg.pttKey);
+                if (this.pttViaRpc) this.rpcVoice('mute', false); else SystemActions.keyHold(cfg.pttKey);
             } else if (eventType === 'keyUp' && this.pttHeld) {
                 this.pttHeld = false;
                 this.ctx.updateKey('discord', 2, { bgColor: '#1C1D25', borderColor: '#2D303E', badge: 'PTT', badgeColor: '#5865F2', active: false });
-                SystemActions.keyRelease(cfg.pttKey);
+                if (this.pttViaRpc) this.rpcVoice('mute', true); else SystemActions.keyRelease(cfg.pttKey);
             }
             return;
         }
@@ -137,32 +210,42 @@ class DiscordProfile {
 
         switch (actionId) {
             case 'discord:toggle_mute':
-                // Estado otimista: só alterna se o atalho realmente foi enviado com a janela focada
-                this.sendShortcut(cfg.muteKey).then((sent) => {
-                    if (sent) {
-                        this.isMuted = !this.isMuted;
-                        if (!this.isMuted && this.isDeafened) this.isDeafened = false; // desmutar no Discord também remove o "surdo"
-                        this.refreshKeys();
-                    }
+                // API primeiro (funciona com o Discord na bandeja e devolve o estado real);
+                // sem API, estado otimista: só alterna se o atalho foi enviado com a janela focada
+                this.rpcVoice('mute', !this.isMuted).then((done) => {
+                    if (done) return;
+                    return this.sendShortcut(cfg.muteKey).then((sent) => {
+                        if (sent) {
+                            this.isMuted = !this.isMuted;
+                            if (!this.isMuted && this.isDeafened) this.isDeafened = false; // desmutar no Discord também remove o "surdo"
+                            this.refreshKeys();
+                        }
+                    });
                 });
                 break;
 
             case 'discord:toggle_deafen':
-                this.sendShortcut(cfg.deafenKey).then((sent) => {
-                    if (sent) {
-                        this.isDeafened = !this.isDeafened;
-                        if (this.isDeafened) this.isMuted = true; // ensurdecer no Discord também muta o mic
-                        this.refreshKeys();
-                    }
+                this.rpcVoice('deaf', !this.isDeafened).then((done) => {
+                    if (done) return;
+                    return this.sendShortcut(cfg.deafenKey).then((sent) => {
+                        if (sent) {
+                            this.isDeafened = !this.isDeafened;
+                            if (this.isDeafened) this.isMuted = true; // ensurdecer no Discord também muta o mic
+                            this.refreshKeys();
+                        }
+                    });
                 });
                 break;
 
-            case 'discord:focus':
-                SystemActions.focusWindow(DISCORD_WINDOW);
+            case 'discord:voice_room':
+                // Indicador: o toque só relê a sala
+                if (this.rpcReady()) this.rpc.loadChannel().catch(() => {});
                 break;
 
+            case 'discord:focus':
             case 'discord:open':
-                this.openDiscord();
+                // Um toque só: traz a janela para a frente; se não há janela (fechado ou na bandeja), abre o Discord
+                SystemActions.focusWindow(DISCORD_WINDOW).then((focused) => { if (!focused) this.openDiscord(); });
                 break;
 
             case 'discord:quick_switcher':

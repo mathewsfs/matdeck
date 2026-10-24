@@ -17,6 +17,8 @@ finish-args:
   - --talk-name=org.freedesktop.Notifications # aviso "MatDeck no ar" do ícone da bandeja
   - --socket=wayland                         # só para o servidor saber que há sessão gráfica (bandeja)
   - --socket=fallback-x11
+  - --filesystem=xdg-run/discord-ipc-0        # socket IPC do Discord nativo (controle de mic/surdo)
+  - --filesystem=xdg-run/app/com.discordapp.Discord  # socket IPC do Discord flatpak
 build-options:
   append-path: /usr/lib/sdk/node24/bin
 modules:

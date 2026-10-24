@@ -25,16 +25,16 @@ const STATIC_GROUPS = [
     {
         id: 'discord', label: 'Discord', icon: 'discord',
         actions: [
-            { id: 'discord:toggle_mute', label: 'Microfone', icon: 'mic_on', hint: 'Foca o Discord e envia Ctrl+Shift+M' },
-            { id: 'discord:toggle_deafen', label: 'Surdo', icon: 'headphone', hint: 'Ctrl+Shift+D' },
-            { id: 'discord:ptt', label: 'Push to Talk', icon: 'ptt', hint: 'Atalho configurável em Ajustes' },
+            { id: 'discord:toggle_mute', label: 'Microfone', icon: 'mic_on', hint: 'Pela API do Discord (funciona na bandeja); sem API, foca o Discord e envia Ctrl+Shift+M' },
+            { id: 'discord:toggle_deafen', label: 'Surdo', icon: 'headphone', hint: 'Pela API do Discord; sem API, Ctrl+Shift+D' },
+            { id: 'discord:voice_room', label: 'Sala de voz', icon: 'people', kind: 'indicator', hint: 'Sala atual, seu estado e quem está nela, com quem fala em tempo real (precisa da API em Ajustes; padrão: 2×2)', defaultSpan: { cols: 2, rows: 2 } },
+            { id: 'discord:ptt', label: 'Push to Talk', icon: 'ptt', hint: 'Segure para falar e solte para mutar: pela API do Discord (modo de voz por atividade) ou pelo atalho de Ajustes' },
             { id: 'discord:quick_switcher', label: 'Busca rápida', icon: 'grid', hint: 'Ctrl+K' },
             { id: 'discord:inbox', label: 'Caixa de entrada', icon: 'bell', hint: 'Ctrl+I' },
             { id: 'discord:prev_channel', label: 'Canal anterior', icon: 'prev' },
             { id: 'discord:next_channel', label: 'Próximo canal', icon: 'next' },
             { id: 'discord:mark_read', label: 'Marcar como lido', icon: 'chat' },
-            { id: 'discord:focus', label: 'Focar janela', icon: 'focus' },
-            { id: 'discord:open', label: 'Abrir Discord', icon: 'open' }
+            { id: 'discord:open', label: 'Abrir / focar Discord', icon: 'discord', hint: 'Traz a janela para a frente; se o Discord não estiver aberto, abre' }
         ]
     },
     {
@@ -73,6 +73,7 @@ const STATIC_GROUPS = [
         actions: [
             { id: 'spotify:now_playing', label: 'Tocando agora', icon: 'music', kind: 'indicator', hint: 'Capa, faixa, artista e progresso; toque pausa/retoma', defaultSpan: { cols: 2, rows: 2 } },
             { id: 'spotify:transport', label: 'Controles (◀ ▶ ▶▶)', icon: 'play', hint: 'Anterior, play/pause e próxima num bloco só (padrão: 2 colunas)', defaultSpan: { cols: 2, rows: 1 } },
+            { id: 'spotify:mixer', label: 'Controles + volume', icon: 'music', hint: 'Anterior, play/pause e próxima em cima; o volume do Spotify como fader deitado embaixo; toque fora dos botões muda/desmuta (padrão: 2 colunas)', defaultSpan: { cols: 2, rows: 1 } },
             { id: 'spotify:play_pause', label: 'Play / Pause', icon: 'play', hint: 'Estado real do Spotify' },
             { id: 'spotify:next', label: 'Próxima faixa', icon: 'next' },
             { id: 'spotify:prev', label: 'Faixa anterior', icon: 'prev' },
@@ -168,7 +169,7 @@ const STATIC_GROUPS = [
             { id: 'stats:cpu', label: 'CPU uso + gráfico', icon: 'cpu', kind: 'indicator', hint: 'Uso em %, temperatura e histórico de 60 s' },
             { id: 'stats:cores', label: 'CPU por núcleo', icon: 'cpu', kind: 'indicator', hint: 'Uma barra por núcleo' },
             { id: 'stats:cpu_temp', label: 'CPU temperatura', icon: 'temp', kind: 'indicator' },
-            { id: 'stats:gpu', label: 'GPU uso + temp', icon: 'gpu', kind: 'indicator' },
+            { id: 'stats:gpu', label: 'GPU uso + temp', icon: 'gpu', kind: 'indicator', hint: 'Uso em %, temperatura e histórico de 60 s (VRAM tem bloco próprio)' },
             { id: 'stats:gpu_temp', label: 'GPU temperatura', icon: 'temp', kind: 'indicator' },
             { id: 'stats:vram', label: 'VRAM', icon: 'gpu', kind: 'indicator' },
             { id: 'stats:ram', label: 'RAM', icon: 'ram', kind: 'indicator' },

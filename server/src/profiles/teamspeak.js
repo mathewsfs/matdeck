@@ -31,7 +31,7 @@ const DEFAULT_CONFIG = {
     // Host[:porta] do servidor TS. Usado só em "Abrir TS" quando desconectado (ts3server://host?port= conecta);
     // com o cliente já conectado o TS6 ignora links de canal, e a Remote Apps API não tem comando de canal.
     // A API não expõe o hostname (properties.address vem vazio; properties.port vem preenchido e tem prioridade).
-    serverAddress: 'infocrivo.com:9987',
+    serverAddress: '',
     identifier: 'br.com.matdeck',
     appName: 'MatDeck',
     appVersion: require('../../package.json').version,
@@ -1314,6 +1314,13 @@ class TeamSpeakProfile {
     // ------------------------------------------------------------------
     // Ações
     // ------------------------------------------------------------------
+
+    /** Em modo "segurar", solta PTT/sussurro se o tablet caiu com a tecla pressionada. */
+    releaseHeld() {
+        if ((this.getConfig().pttMode || 'toggle') !== 'hold') return;
+        if (this.pttHeld) this.handleAction('ts:ptt', 'keyUp');
+        if (this.whisperHeld) this.handleAction('ts:whisper', 'keyUp');
+    }
 
     handleAction(actionId, eventType) {
         if (actionId === 'ts:stream' || actionId === 'ts:talking') return; // teclas informativas
