@@ -1,5 +1,9 @@
 node_modules/
 server/data/config.json
+server/data/presets.json
+server/data/devices.json
+server/data/*.corrompido-*
+server/data/fans-rejected-token.json
 plugins/
 plugins/*.streamDeckPlugin
 dist/
@@ -15,3 +19,4 @@ build/
 server/data/ai-usage.json
 __pycache__/
 *.pyc
+server/data/media/
