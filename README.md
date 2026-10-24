@@ -1,6 +1,22 @@
 # MatDeck 🎛️
 
-Transforma um tablet ou celular antigo com **Android 4.4.4+ (API 19)** em um Stream Deck para o seu PC Linux, com foco em **TeamSpeak, Discord e Google Meet**, mais OBS Studio, mixer de volume e telemetria de hardware.
+[![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
+[![Versão](https://img.shields.io/github/v/release/mathewsfs/matdeck?include_prereleases&label=vers%C3%A3o)](https://github.com/mathewsfs/matdeck/releases)
+[![CI](https://github.com/mathewsfs/matdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/mathewsfs/matdeck/actions/workflows/ci.yml)
+[![Servidor](https://img.shields.io/badge/servidor-Linux%20%C2%B7%20Flatpak-informational)](#flatpak-instalar-como-aplicativo)
+[![Deck](https://img.shields.io/badge/deck-Android%204.4%2B%20%C2%B7%20iOS%209%2B%20%C2%B7%20navegador-informational)](#telas-do-tablet)
+
+Transforma um tablet ou celular antigo com **Android 4.4.4+ (API 19)**, ou um **iPad 2 com Safari 9**, em um Stream Deck para o seu PC Linux, com foco em **TeamSpeak, Discord e Google Meet**, mais OBS Studio, Nextcloud Talk, Spotify, mixer de volume, ventoinhas e telemetria de hardware. Software livre sob a licença MIT.
+
+> *MatDeck turns an old Android tablet, phone or iPad into a Stream Deck for your Linux PC. Documentation is in Brazilian Portuguese; the code and the issue tracker welcome English.*
+
+## Instalação rápida
+
+1. Baixe o `MatDeck.flatpak` da [última versão estável](https://github.com/mathewsfs/matdeck/releases/latest) ou de uma [beta](https://github.com/mathewsfs/matdeck/releases) e instale: `flatpak install --user MatDeck.flatpak`.
+2. Abra **MatDeck** no menu: o servidor sobe com um ícone na bandeja e o gerenciador abre em `http://localhost:8888/manage`.
+3. No tablet, abra `http://<ip-do-pc>:8888` no navegador (ou instale o `MatDeck-debug.apk`) e digite o PIN de 4 dígitos que aparece no gerenciador. Pronto: monte seus perfis arrastando ações.
+
+Canais: **estável** (`vX.Y.Z`) para o dia a dia e **beta** (`vX.Y.Z-beta.N`) para quem quer testar antes. Detalhes em [ROADMAP.md](ROADMAP.md) e o histórico em [CHANGELOG.md](CHANGELOG.md).
 
 Dois componentes:
 
@@ -18,7 +34,8 @@ Dois componentes:
 | `kdotool` (opcional) | focar a janela certa mais rápido no KDE; detectar o app ativo em outros compositores Wayland | `sudo dnf install kdotool` (ou `cargo install kdotool`) |
 | `pactl`/`wpctl` | mixer de volume | já vem com PipeWire |
 | `python3-pyside6` | ícone do servidor na bandeja do sistema (opcional) | `sudo dnf install python3-pyside6` |
-| `lm_sensors`, `nvidia-smi` | temperatura de CPU/GPU (opcional) | `sudo dnf install lm_sensors` |
+| `nvidia-smi` (só NVIDIA) | uso, temperatura e VRAM da GPU NVIDIA | vem com o driver proprietário |
+| `lm_sensors` (opcional) | reserva para a temperatura da CPU quando o kernel não expõe o sensor em `/sys` | `sudo dnf install lm_sensors` |
 | podman ou docker | compilar o APK sem instalar Android Studio | `sudo dnf install podman` |
 
 **Ajuste do ydotool (uma vez):** o serviço padrão do Fedora cria o socket só para root. Rode:
@@ -32,6 +49,8 @@ sudo systemctl daemon-reload && sudo systemctl restart ydotool
 ```
 
 O chip "Teclas" no painel fica verde quando o socket está utilizável.
+
+**CPU e GPU de qualquer fabricante.** A telemetria lê o kernel direto em `/sys`, sem ferramenta extra: temperatura da CPU pelo `k10temp`/`zenpower` (AMD, sensor Tctl/Tdie) ou `coretemp` (Intel, "Package id 0"), com `thermal_zone` e `sensors` como reserva; GPU AMD pelo driver `amdgpu` (uso, temperatura "edge", VRAM usada e total); GPU Intel Arc pelo `xe`/`i915` (temperatura e VRAM total; o kernel não expõe o uso, então a tecla mostra "--"); NVIDIA pelo `nvidia-smi` (sem ele, só a temperatura do `nouveau`). Em máquinas com gráfico integrado e placa dedicada, a dedicada (fora do barramento PCI 00) é a escolhida. O servidor imprime no início o que detectou: `[HardwareMonitor] CPU ... | GPU: ...`.
 
 Em X11 o `xdotool` é usado no lugar de `ydotool`/`kdotool`. No KDE (Wayland ou X11) o foco de janela sem `kdotool` usa um script KWin via DBus (funciona, só é um pouco mais lento) e a detecção do app ativo usa um script KWin persistente, sem precisar de `kdotool`. No Wayland o `xdotool` nunca é usado para ler a janela ativa: ele só enxerga janelas XWayland e aborta (core dump) nas nativas; se abortar em um atalho, é desligado até reiniciar o servidor.
 
@@ -48,9 +67,9 @@ Para iniciar o servidor no dia a dia: `./start-server.sh` na pasta do projeto (o
 adb install -r dist/MatDeck-debug.apk
 ```
 
-Abra o app no tablet: ele encontra o PC por broadcast UDP (porta 8889) e conecta em `ws://<ip>:8888/deck`. Se a rede bloquear broadcast, toque em **⚙ IP** no app e digite o IP do PC.
+Abra o app no tablet: ele encontra o PC por broadcast UDP (porta 8889) e conecta em `ws://<ip>:8888/deck`. Se a rede bloquear broadcast, toque em **⚙ IP** no app e digite o IP do PC. Na primeira conexão o aparelho pede um **PIN de 4 dígitos**, que aparece no gerenciador do PC (veja "Acesso" abaixo).
 
-Sem o APK, o navegador do tablet também funciona: `http://<ip-do-pc>:8888`.
+Sem o APK, o navegador do tablet também funciona: `http://<ip-do-pc>:8888` (mesmo PIN, uma vez por aparelho).
 
 ### Flatpak (instalar como aplicativo)
 
@@ -71,6 +90,16 @@ Enquanto o servidor roda, um ícone do MatDeck fica na bandeja do KDE com um pon
 
 Precisa de `python3-pyside6`. Para desligar: `"ui": { "tray": false }` em `server/data/config.json` ou `MATDECK_TRAY=0 ./start-server.sh`.
 
+### Acesso: gerenciador só no PC e PIN para os dispositivos
+
+O servidor escuta na rede inteira (o tablet precisa chegar nele), mas o acesso é dividido pela origem da conexão (`server/src/auth.js`):
+
+- **Este PC (loopback)**: acesso total. O gerenciador (`/manage`), a configuração, os presets, os plugins e o desligamento só respondem a `localhost`/`127.0.0.1`. De qualquer outro endereço, `/manage` mostra um aviso e as rotas de administração devolvem 401/403.
+- **Dispositivos da rede (tablet, celular, APK)**: ao abrir o deck, o aparelho pede um PIN (`POST /api/pair/start`) e o gerenciador mostra um cartão no canto inferior direito com o PIN de 4 dígitos, o nome do aparelho e o IP, com botão **Recusar** (bloqueia aquele IP por 10 min). O PIN vale 2 minutos e aceita 5 tentativas; depois disso o IP espera 30 s, 1 min, 2 min… (até 10 min). Acertou (`POST /api/pair/verify`): o servidor grava um cookie HttpOnly de 1 ano com o token do aparelho (o APK usa o cabeçalho `X-MatDeck-Token`) e o aparelho fica lembrado. Em disco só vai o hash SHA-256 do token, em `devices.json` (modo 600, na mesma pasta do `config.json`).
+- **Ajustes → Dispositivos** lista os aparelhos emparelhados (nome, IP, online/visto por último) com **Remover**: o aparelho é desconectado na hora e volta a pedir PIN.
+- O cabeçalho `Host` precisa ser um nome ou IP desta máquina (`localhost`, IPs das interfaces, hostname, `hostname.local`); isso fecha o DNS rebinding, em que um site de fora aponta o próprio domínio para 127.0.0.1. Para aceitar outro nome (um DNS interno, por exemplo): `"server": { "allowedHosts": ["deck.casa"] }` em `config.json`.
+- Um dispositivo emparelhado só usa o que o deck precisa: o WebSocket, a página e seus assets, `/media/*`, `/api/status`, `/api/hardware` e as imagens das teclas. `GET /api/session` diz o papel de quem chama (`trusted`, `device` ou `guest`).
+
 ---
 
 ## Integrações
@@ -88,9 +117,19 @@ Precisa de `python3-pyside6`. Para desligar: `"ui": { "tray": false }` em `serve
 
 ### Discord (flatpak ou nativo)
 
-O Discord não expõe API local sem OAuth, então o MatDeck **foca a janela do Discord e envia os atalhos padrão** (`Ctrl+Shift+M` mute, `Ctrl+Shift+D` deafen). Isso exige `ydotool` ativo e, no KDE Wayland, `kdotool` (ou o fallback KWin).
+**Controle nativo (recomendado):** o MatDeck fala com o Discord pelo socket IPC local (`discord-ipc-0`, a mesma API do Stream Deck). Mic, surdo e PTT funcionam com o Discord minimizado ou na bandeja, e as teclas mostram o estado real (mudar no próprio Discord reflete no tablet). Configuração, uma vez:
 
-Push-to-talk: configure em *Discord > Configurações > Teclas de atalho* o mesmo atalho que está em **⚙ Configurações > Discord > PTT** no painel (padrão `Ctrl+Shift+P`).
+1. Em [discord.com/developers/applications](https://discord.com/developers/applications) crie um aplicativo (qualquer nome).
+2. Em **OAuth2**, adicione o redirect `http://localhost` e copie o **Client ID** e o **Client Secret**.
+3. Cole em **⚙ Configurações > Discord** no painel e salve. O Discord abre uma janela pedindo autorização: aceite.
+
+Os tokens ficam em `config.json` (fora do git) e são renovados sozinhos. PTT pela API: segurar desmuta e soltar muta (com o Discord em "atividade de voz"); se o Discord estiver em modo Push to Talk, a tecla segura o atalho configurado abaixo.
+
+**Reserva por teclado:** sem Client ID (ou com o Discord fechado para a API), o MatDeck **foca a janela do Discord e envia os atalhos padrão** (`Ctrl+Shift+M` mute, `Ctrl+Shift+D` deafen). Isso exige `ydotool` ativo e, no KDE Wayland, `kdotool` (ou o fallback KWin), e não funciona com o Discord na bandeja. Push-to-talk por teclado: configure em *Discord > Configurações > Teclas de atalho* o mesmo atalho que está em **⚙ Configurações > Discord** (padrão `Ctrl+Shift+P`).
+
+As teclas de navegação (Busca Rápida, Caixa de Entrada, canais) continuam por atalho, pois agem na interface.
+
+Com a API ativa há também o bloco **Sala de voz** (Painel de Ações → Discord): sala e servidor atuais, seu estado (mudo/surdo) e quem está na sala, com quem fala em tempo real. Fora de chamada mostra "fora de chamada". Sugestão: 2×2 na Principal.
 
 ### Google Meet
 
@@ -137,6 +176,8 @@ Fader **Ventoinhas** (ação `vol_slider:fans`, grupo "Ventoinhas (CoolerControl
 
 Faders por aplicativo (PipeWire/PulseAudio via `pactl`) e teclas de telemetria no estilo painel: cabeçalho com o rótulo à esquerda e um valor à direita, número grande no centro e, embaixo, gráfico dos últimos 60 s, barra de progresso ou uma barra por núcleo. Ações: CPU uso + gráfico, CPU por núcleo, CPU temperatura, GPU uso + gráfico, GPU temperatura, VRAM, RAM, RAM livre, Rede ↓↑ e Disco R/W (rede e disco somam as interfaces e discos físicos lidos de `/proc`). Valores atualizados a cada segundo. Não há perfis pré-montados: monte os seus no gerenciador (Novo perfil) e arraste os blocos.
 
+**Modo econômico.** Sem nenhum deck ou gerenciador conectado ninguém vê esses números, então os coletores desaceleram sozinhos: hardware a cada 10 s, CoolerControl a cada 30 s, Spotify a cada 10 s e sem sondagem de posição dos players de mídia (metadados continuam chegando por evento D-Bus). Com GPU NVIDIA, enquanto houver cliente conectado o servidor mantém um único `nvidia-smi` em modo contínuo (`-lms 1000`) em vez de criar um processo por segundo; ele é encerrado quando o último cliente sai. O primeiro cliente que conecta volta tudo para tempo real na hora.
+
 ### Troca automática de perfil
 
 Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troca o perfil no tablet. Backends, na ordem: script KWin orientado a evento no KDE (`qdbus` + `busctl`, sem polling: o script ouve `windowActivated` e o título da janela ativa e avisa o servidor por D-Bus; se o KWin reiniciar, o script é recarregado sozinho), `kdotool` (polling de 1,5 s, uma chamada por ciclo), Hyprland/Sway e `xdotool` só em X11. Com AUTO desligado nenhum backend roda. Se um backend falhar, o motivo sai uma vez no log e o próximo assume.
@@ -157,6 +198,10 @@ Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troc
 
 - **Dropdown de perfil** no topo, sem abas. Escolher um perfil ali também ativa esse perfil no tablet; se o tablet trocar, o dropdown acompanha. Menu com Novo, Duplicar, Renomear e Excluir; seletor de grade (linhas x colunas) e HUD.
 - **Aparelho desenhado** no centro com a grade do perfil e o estado vivo das teclas. Clicar seleciona (não dispara); arrastar tecla sobre tecla troca de lugar; botão direito ou Delete limpa.
+- **Fader deitado**: qualquer fader de volume pode ficar na horizontal (painel da tecla → *Orientação do fader*), arrastando para o lado; combina com teclas de 2 colunas por 1 linha.
+- **Spotify "Controles + volume"**: anterior, play/pause e próxima em cima e o volume do Spotify como fader deitado embaixo, num bloco só (padrão 2 colunas); toque fora dos botões muda/desmuta.
+- **Telemetria ajustável** (painel da tecla → *Telemetria*): tamanho da fonte de −50% a +150%, tipo de gráfico (área, linha, barras ou sem gráfico) e *Inverter destaque* para trocar o número grande pelo valor do cabeçalho (ex.: temperatura grande e uso pequeno).
+
 - **Painel de Ações** à direita, com busca e grupos recolhíveis (TeamSpeak, Discord, Meet, OBS, Mídia e Sistema, Telemetria, Volume por app, Trocar de tela). Arraste a ação para a tecla; no toque ou teclado, toque na ação e depois na tecla.
 - **Inspetor** embaixo: título, ícone (60 opções), badge, cores, parâmetros da ação, "Testar tecla". Salva sozinho (indicador Salvo/Salvando/Erro).
 - **Tamanho do ícone**: abaixo do seletor de ícone há um controle de 50% a 200% por tecla (campo `iconScale`). O painel inferior tem um X para recolher; clicar numa tecla reabre.
@@ -164,6 +209,7 @@ Com **AUTO** ligado, focar o OBS, o Discord, o TeamSpeak ou uma aba do Meet troc
 - **Plugins do Stream Deck**: botão de quebra-cabeça no topo abre o painel de plugins (instalar, log, reiniciar, remover); as ações dos plugins entram no catálogo e a tecla mostra a imagem do plugin; a configuração do plugin (Property Inspector) abre dentro do inspetor.
 - **Principal** e **Mais** são totalmente editáveis (o que você salva sobrepõe o layout padrão; menu `⋯` → "Restaurar layout padrão" volta ao original). OBS, Discord, TeamSpeak e Meet são somente leitura: "Duplicar para editar".
 - Menu `⋯` → **Ocultar no tablet** tira o perfil das abas, do ciclo ◀ ▶ do app e do Auto-Perfil, sem apagar (continua acessível por tecla `switch:`).
+- **Auto-Perfil** (botão **AUTO** na barra ou tecla `toggle:auto`): troca a tela pela janela em foco. Nasce **desligado** e o último estado fica salvo (`ui.autoDetect`), então sobrevive a reinícios. Em **Ajustes → Auto-Perfil** você escolhe, para cada aplicativo reconhecido (OBS, Discord, TeamSpeak, Google Meet, Nextcloud Talk, Spotify), qual perfil ele ativa: o de mesmo nome (padrão), qualquer outro perfil seu, ou "Não trocar" (`ui.autoProfiles`; API `GET/POST /api/autodetect`, `POST /api/config`).
 - Menu `⋯` → **Excluir** vale para qualquer aba, inclusive as embutidas (OBS, Discord, TeamSpeak, Meet, Mais): ela some do tablet, do gerenciador e do catálogo "Trocar de tela", e o layout personalizado nela é descartado. Para trazer de volta: `⋯` → **Restaurar abas excluídas**. Só a **Principal** não pode ser excluída. (API: `DELETE /api/profiles/:id`, `POST /api/profiles/restore-all`; a lista fica em `ui.removedProfiles` na config.)
 
 O catálogo de ações vem de `GET /api/actions`; a página antiga `/` continua sendo o **deck ao vivo** que o tablet abre.
@@ -233,7 +279,7 @@ apk-matdeck/
 
 ## Protocolo (resumo)
 
-Servidor → cliente: `profileList`, `loadProfile`, `updateKey` (campos parciais, mesclados), `hardwareStats`, `autoDetectStatus`, `notify` (`{id,title,text,level:'info'|'success'|'warn'|'poke',ttlMs}`; teste com `POST /api/notify`). Cliente → servidor: `clientHello`, `switchProfile`, `keyDown`/`keyUp` (com `keyIndex` e `profile`), `setVolume`, `toggleMute`, `action` (botões internos de um bloco, ex. controles do Spotify). Ping/pong a cada 25 s.
+Servidor → cliente: `profileList`, `loadProfile`, `updateKey` (campos parciais, mesclados), `hardwareStats`, `autoDetectStatus`, `pairing` e `devices` (só para clientes do próprio PC: pedidos de PIN pendentes e aparelhos emparelhados), `notify` (`{id,title,text,level:'info'|'success'|'warn'|'poke',ttlMs}`; teste com `POST /api/notify`). Cliente → servidor: `clientHello`, `switchProfile`, `keyDown`/`keyUp` (com `keyIndex` e `profile`), `setVolume`, `toggleMute`, `action` (botões internos de um bloco, ex. controles do Spotify). Ping/pong a cada 25 s.
 
 Ações são `prefixo:nome`: `obs:`, `discord:`, `ts:`, `meet:`, `media:`, `launch:`, `system:`, `switch:<perfil>`, `vol_slider:<app>`, `vol_step:<app>:<±n>`, `stats:<métrica>`, `toggle:auto`, `ts:channel:<id>`. Qualquer preset pode misturar ações de qualquer integração.
 
@@ -252,3 +298,20 @@ Os ícones das teclas vêm de [Lucide](https://lucide.dev) (ISC) e [Simple Icons
 - O navegador do Android 4.4 não roda o painel web moderno (use o APK).
 - No iPad 2 (iOS 9) o deck roda pelo `app.legacy.js`, mas sem tela cheia e sem "manter a tela acesa": o Safari 9 não expõe essas APIs.
 - Windows e macOS têm só o caminho básico de teclas; o foco do projeto é Linux.
+
+---
+
+## Versões e releases
+
+- **Estável**: tags `vX.Y.Z`, marcadas como *Latest* nas [releases](https://github.com/mathewsfs/matdeck/releases). Para o dia a dia.
+- **Beta**: tags `vX.Y.Z-beta.N`, marcadas como *Pre-release*. Têm o que vem na próxima estável; podem ter arestas.
+- Cada release traz o `MatDeck.flatpak` (servidor) e o `MatDeck-debug.apk` (cliente Android), construídos pela CI a partir da tag. O que mudou está no [CHANGELOG.md](CHANGELOG.md); o que vem depois, no [ROADMAP.md](ROADMAP.md).
+- Versões seguem [SemVer](https://semver.org/lang/pt-BR/): mudança de protocolo do deck, de presets ou de config sobe o primeiro número.
+
+## Contribuindo
+
+Issues e pull requests são bem-vindos. O [CONTRIBUTING.md](CONTRIBUTING.md) explica como rodar a partir do código, os testes (`npm test` em `server/`), o padrão de commits e o fluxo de branches. Falhas de segurança: veja [SECURITY.md](SECURITY.md).
+
+## Licença
+
+[MIT](LICENSE) © 2026 Mathews. Os ícones embutidos e os nomes TeamSpeak, Discord, Google Meet, OBS, Spotify, Nextcloud e Stream Deck pertencem aos respectivos donos; o MatDeck não é afiliado a nenhum deles.

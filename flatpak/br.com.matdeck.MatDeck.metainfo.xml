@@ -2,12 +2,16 @@
 <component type="desktop-application">
   <id>br.com.matdeck.MatDeck</id>
   <name>MatDeck</name>
-  <summary>Stream Deck para tablet Android</summary>
+  <summary>Stream Deck para tablet, celular ou iPad antigo</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <description>
-    <p>Servidor que transforma um tablet Android em um painel de atalhos para TeamSpeak, Discord, Google Meet, OBS e volume do PC. Mostra um ícone na bandeja enquanto roda e abre o gerenciador de teclas no navegador.</p>
+    <p>Servidor que transforma um tablet Android, um celular ou um iPad antigo em um painel de atalhos para TeamSpeak, Discord, Google Meet, Nextcloud Talk, OBS, Spotify, volume e telemetria do PC. Mostra um ícone na bandeja enquanto roda e abre o gerenciador de teclas no navegador. Os aparelhos emparelham uma vez por PIN.</p>
   </description>
+  <url type="homepage">https://github.com/mathewsfs/matdeck</url>
+  <url type="bugtracker">https://github.com/mathewsfs/matdeck/issues</url>
+  <url type="vcs-browser">https://github.com/mathewsfs/matdeck</url>
+  <url type="contribute">https://github.com/mathewsfs/matdeck/blob/main/CONTRIBUTING.md</url>
   <developer id="br.com.matdeck">
     <name>Mathews</name>
   </developer>
@@ -17,6 +21,12 @@
   </provides>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.4.0~beta.1" date="2026-10-24" type="development">
+      <url>https://github.com/mathewsfs/matdeck/releases/tag/v1.4.0-beta.1</url>
+      <description>
+        <p>Emparelhamento por PIN, gerenciador só no PC, Discord por RPC, Auto-Perfil configurável, telemetria para CPU e GPU AMD/Intel/NVIDIA, modo econômico e deck para Safari 9.</p>
+      </description>
+    </release>
     <release version="1.3.1" date="2026-10-19" />
     <release version="1.3.0" date="2026-10-16" />
     <release version="1.2.0" date="2026-10-14" />
