@@ -77,6 +77,7 @@ class SpotifyProfile {
                 };
             }
             case 'spotify:transport':
+            case 'spotify:mixer':
                 return {
                     transport: true,
                     transportPlaying: playing,
@@ -138,6 +139,9 @@ class SpotifyProfile {
             case 'spotify:transport':
                 // O bloco inteiro não tem ação própria: os botões internos disparam spotify:prev/play_pause/next
                 return;
+            case 'spotify:mixer':
+                // Toque fora dos botões: muda/desmuta o Spotify, como no fader comum
+                return this.ctx.audioMixer && this.ctx.audioMixer.toggleMute('spotify');
             case 'spotify:now_playing':
                 return m.state.running ? m.playPause() : m.raise();
             case 'spotify:play_pause':

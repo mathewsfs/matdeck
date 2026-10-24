@@ -234,13 +234,22 @@ class MediaPlayers extends EventEmitter {
         if (typeof this.debounceTimer.unref === 'function') this.debounceTimer.unref();
     }
 
+    /** A posição só é sondada enquanto toca E há cliente conectado; metadados continuam por evento. */
+    setActive(active) {
+        active = !!active;
+        if (active === this.liveViewers) return; // 'active' já é o getter do player em foco
+        this.liveViewers = active;
+        if (active && !this.stopped) this.pollSoon(0);
+        else if (!active) this.scheduleNext();
+    }
+
     scheduleNext() {
         clearTimeout(this.timer);
         this.timer = null;
         if (this.stopped) return;
         const playing = [...this.players.values()].some(p => p.status === 'Playing');
         let ms = null;
-        if (playing) ms = POLL_PLAYING_MS;
+        if (playing && this.liveViewers) ms = POLL_PLAYING_MS;
         else if (!this.watcher) ms = POLL_FALLBACK_MS;
         if (ms === null) return;    // parado e com monitor: só eventos
         this.timer = setTimeout(() => { this.pending.clear(); this.poll(); }, ms);

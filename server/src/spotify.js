@@ -19,6 +19,7 @@ const IFACE_PLAYER = 'org.mpris.MediaPlayer2.Player';
 const IFACE_ROOT = 'org.mpris.MediaPlayer2';
 
 const POLL_RUNNING_MS = 1000;
+const POLL_RUNNING_IDLE_MS = 10000; // Spotify aberto mas sem cliente conectado: ninguém vê a posição
 const POLL_IDLE_MS = 3000;          // sem o monitor D-Bus
 const POLL_IDLE_WATCHED_MS = 60000; // com o monitor: só uma conferência de segurança por minuto
 const ART_CACHE_MAX = 24;
@@ -102,6 +103,18 @@ class SpotifyMonitor extends EventEmitter {
         this.lastSampleAt = 0;
         this.watcher = null;      // busctl monitor: avisa quando o Spotify entra/sai do barramento
         this.stopped = false;
+    }
+
+    /** Com cliente conectado sonda a cada 1 s enquanto o Spotify roda; sem ninguém, a cada 10 s. */
+    setActive(active) {
+        active = !!active;
+        if (active === this.active) return;
+        this.active = active;
+        if (active && !this.stopped) this.pollSoon(0);
+    }
+
+    runningPollMs() {
+        return this.active ? POLL_RUNNING_MS : POLL_RUNNING_IDLE_MS;
     }
 
     start() {
@@ -189,7 +202,7 @@ class SpotifyMonitor extends EventEmitter {
             }
             this.apply(next);
             if (this.stopped) return;
-            this.schedule(this.state.running ? POLL_RUNNING_MS : (this.watcher ? POLL_IDLE_WATCHED_MS : POLL_IDLE_MS));
+            this.schedule(this.state.running ? this.runningPollMs() : (this.watcher ? POLL_IDLE_WATCHED_MS : POLL_IDLE_MS));
         });
     }
 
