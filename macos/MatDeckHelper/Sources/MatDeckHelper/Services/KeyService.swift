@@ -8,6 +8,7 @@ import MatDeckHelperCore
 final class KeyService {
     private var charMap: [Character: UInt16] = [:]
     private var charMapLayoutId: String = ""
+    private var held = HeldKeys()   // o que o servidor deixou pressionado (PTT)
 
     func register(on d: Dispatcher) {
         d.register("key.shortcut") { [self] args in
@@ -113,6 +114,19 @@ final class KeyService {
             }
         }
         for e in events { e.post(tap: .cghidEventTap); usleep(4000) }
+        let codes = events.map { UInt16($0.getIntegerValueField(.keyboardEventKeycode)) }
+        if down { held.pressed(codes) } else { held.released(codes) }
+    }
+
+    /// Conexão caiu (ou servidor morreu) com tecla segurada: solta tudo para nada ficar preso no sistema.
+    func releaseAll() {
+        let codes = held.drain()
+        guard !codes.isEmpty else { return }
+        FileHandle.standardError.write(Data("[helper] soltando \(codes.count) tecla(s) que o servidor deixou pressionada(s)\n".utf8))
+        let source = CGEventSource(stateID: .combinedSessionState)
+        for code in codes {
+            if let e = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: false) { e.flags = CGEventFlags(); e.post(tap: .cghidEventTap); usleep(4000) }
+        }
     }
 
     /// Tecla de mídia: evento de sistema (subtype 8) com data1 = (tipo << 16) | (0xA00 down / 0xB00 up).

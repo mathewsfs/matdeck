@@ -30,6 +30,7 @@ const port = 18000 + Math.floor(Math.random() * 1000);
     fake.setHandler('audio.master.subscribe', () => ({ subscribed: true }));
     fake.setHandler('apps.list', () => ({ apps: [{ id: 'com.apple.Safari', name: 'Safari', path: '/Applications/Safari.app' }, { id: 'com.apple.TextEdit', name: 'TextEdit', path: '/System/Applications/TextEdit.app' }] }));
     fake.setHandler('apps.launch', () => ({ launched: true }));
+    fake.setHandler('apps.icon', () => ({ png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' }));
     fake.setHandler('key.shortcut', () => ({}));
 
     const env = { ...process.env, MATDECK_PLATFORM: 'darwin', MATDECK_HELPER_SOCKET: sock, MATDECK_DATA_DIR: path.join(tmp, 'data'), PORT: String(port), MATDECK_TRAY: '0', MATDECK_ELGATO: '0' };
@@ -47,6 +48,12 @@ const port = 18000 + Math.floor(Math.random() * 1000);
     check('/api/status platform darwin com helper', status.platform === 'darwin' && status.capabilities && status.capabilities.helper === true && status.capabilities.accessibility === true && status.capabilities.keysReady === true, status.capabilities);
     const apps = await get(port, '/api/apps');
     check('/api/apps vem do helper', Array.isArray(apps.apps) && apps.apps.some((a) => a.id === 'com.apple.Safari'), apps);
+    const icon = await new Promise((resolve, reject) => http.get({ host: '127.0.0.1', port, path: '/api/apps/com.apple.Safari/icon' }, (res) => { const chunks = []; res.on('data', (d) => chunks.push(d)); res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], body: Buffer.concat(chunks) })); }).on('error', reject));
+    check('/api/apps/:id/icon devolve o PNG do helper', icon.status === 200 && icon.type === 'image/png' && icon.body.slice(0, 4).toString('hex') === '89504e47', { status: icon.status, type: icon.type, len: icon.body.length });
+    const iconJson = await get(port, '/api/apps/com.apple.Safari/icon.json');
+    check('/api/apps/:id/icon.json devolve data URL', typeof iconJson.icon === 'string' && iconJson.icon.startsWith('data:image/png;base64,'), iconJson);
+    const icon404 = await new Promise((resolve) => http.get({ host: '127.0.0.1', port, path: '/api/apps/nao.existe/icon' }, (res) => { res.resume(); resolve(res.statusCode); }));
+    check('ícone de app desconhecido é 404', icon404 === 404, icon404);
 
     const msgs = [];
     const ws = new WebSocket(`ws://127.0.0.1:${port}/deck`);

@@ -32,6 +32,8 @@ tablet (`http://<ip-do-mac>:8888`, PIN no gerenciador). Marque cada item; desvio
 | 16 | Toque **Play/Pause** com o Music ou o Spotify tocando. | O player pausa/retoma (tecla de mídia do sistema). | 3 |
 | 17 | Feche o helper na força (`pkill -x matdeck-helper`) com o servidor rodando. | Log "Helper desconectado…", chip Teclas vermelho; em poucos segundos o servidor relança o helper e tudo volta. | 2, 8 |
 | 18 | Confira `~/Library/Application Support/MatDeck/` depois de salvar um preset e emparelhar o tablet. | `config.json`, `presets.json` e `devices.json` estão lá (não em `server/data`). | 8 |
+| 19 | Segure **Push to Talk** do Discord no deck e, sem soltar, mate o servidor (`Ctrl+C` no terminal); depois solte. | O helper solta `ctrl+shift+p` sozinho ao perder a conexão (log do helper: "soltando 3 tecla(s)…"); nada fica preso: digitar no TextEdit funciona normalmente. | 3 |
+| 20 | Abra o gerenciador e a lista "Abrir aplicativo". | Os ícones reais dos apps aparecem (rota `/api/apps/:id/icon`). | 5, 8 |
 
 Bundle ids a confirmar (ver `server/src/platform/darwin/bundleIds.js`): TeamSpeak 6 e Nextcloud Talk; anote
 o resultado de `osascript -e 'id of app "TeamSpeak"'`.

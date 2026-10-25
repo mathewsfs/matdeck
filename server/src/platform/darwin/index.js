@@ -11,11 +11,13 @@ const { createAudio } = require('./audio');
 const { createTray } = require('./tray');
 const { createSession } = require('./session');
 const { StubSpotify, StubMediaPlayers, StubHardwareMonitor } = require('./stubs');
+const { dataDir } = require('../../paths');
 
 const APP_NAME = 'MatDeck Helper.app';
 
+/** MATDECK_HELPER_SOCKET, senão <dataDir>/helper.sock (duas instâncias com dados separados não disputam o mesmo helper). */
 function defaultSocketPath() {
-    return process.env.MATDECK_HELPER_SOCKET || path.join(os.homedir(), 'Library', 'Application Support', 'MatDeck', 'helper.sock');
+    return process.env.MATDECK_HELPER_SOCKET || path.join(dataDir(), 'helper.sock');
 }
 
 /** MATDECK_HELPER_APP, senão o .app em /Applications ou ~/Applications (instalação) ou ao lado do servidor (desenvolvimento). */

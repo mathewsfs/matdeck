@@ -17,6 +17,8 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
   contra um helper falso (`server/test/fake-helper.js`); integração na VM (`test/integration/darwin-vm.js`).
 
 ### Alterado
+- Chip **Teclas** do gerenciador passa a refletir `capabilities.keysReady`: no Linux fica verde só com
+  ydotool ou xdotool (o kdotool foca janela, mas não envia tecla; antes o chip ficava verde só com ele).
 - O cliente Android (APK) saiu das releases e da CI; o deck é acessado pelo navegador do tablet ou
   celular. O código continua em `android-client/` como experimental (ver ROADMAP).
 - README revisado: capturas de tela do deck, do gerenciador e do PIN; seções "Estrutura" e "Painel web"

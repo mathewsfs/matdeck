@@ -505,15 +505,16 @@ class MatDeckServer {
         this.app.post('/api/apps/refresh', async (req, res) => {
             try { res.json({ success: true, apps: await this.appLauncher.list(true) }); } catch (e) { res.status(500).json({ error: e.message }); }
         });
-        this.app.get('/api/apps/:id/icon', (req, res) => {
-            const icon = this.appLauncher.iconOf(req.params.id);
+        // No macOS iconOf/iconDataUrl são assíncronos (ícone pedido ao helper na primeira vez); await é inócuo no Linux
+        this.app.get('/api/apps/:id/icon', async (req, res) => {
+            const icon = await this.appLauncher.iconOf(req.params.id);
             if (!icon) return res.status(404).end();
             res.set('Content-Type', icon.mime);
             res.set('Cache-Control', 'public, max-age=3600');
             res.send(icon.buffer);
         });
-        this.app.get('/api/apps/:id/icon.json', (req, res) => {
-            const dataUrl = this.appLauncher.iconDataUrl(req.params.id);
+        this.app.get('/api/apps/:id/icon.json', async (req, res) => {
+            const dataUrl = await this.appLauncher.iconDataUrl(req.params.id);
             if (!dataUrl) return res.status(404).json({ error: 'Sem ícone' });
             res.json({ icon: dataUrl });
         });
