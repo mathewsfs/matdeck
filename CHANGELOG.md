@@ -10,6 +10,9 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
   celular. O código continua em `android-client/` como experimental (ver ROADMAP).
 - README revisado: capturas de tela do deck, do gerenciador e do PIN; seções "Estrutura" e "Painel web"
   (página antiga) removidas; referências a "⚙ Configurações" viraram "Ajustes" do gerenciador.
+- Camada de plataforma (`server/src/platform/`) isola teclas, janelas, apps, áudio, mídia, hardware e
+  bandeja; os perfis declaram atalhos por sistema e `GET /api/status` informa `platform`. Preparação
+  para o macOS; sem mudança de comportamento no Linux.
 
 ## [1.4.0-beta.1] - 2026-10-24
 

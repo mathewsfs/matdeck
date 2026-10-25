@@ -3,7 +3,6 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const EventEmitter = require('events');
-const hostExec = require('../hostExec');
 
 const DEVICE_ID = 'matdeck-tablet';
 const MAX_RESTARTS = 3;
@@ -235,10 +234,20 @@ class ElgatoBridge extends EventEmitter {
         if (p.log.length > LOG_LINES) p.log.splice(0, p.log.length - LOG_LINES);
     }
 
+    /** openUrl de plugin ou Property Inspector: só http(s), pela camada de plataforma (deps.openUrl). */
+    openUrl(url) {
+        if (!url || !/^https?:\/\//i.test(url)) return;
+        if (typeof this.deps.openUrl !== 'function') {
+            if (!this.warnedNoOpenUrl) { this.warnedNoOpenUrl = true; console.warn('[Elgato] openUrl ignorado: nenhuma função openUrl configurada'); }
+            return;
+        }
+        try { this.deps.openUrl(url); } catch (e) { console.warn('[Elgato] openUrl falhou:', e.message); }
+    }
+
     buildInfo(meta) {
         const size = (this.deps.getDeviceSize && this.deps.getDeviceSize()) || { columns: 5, rows: 3 };
         return {
-            application: { font: 'Inter', language: 'pt', platform: 'linux', platformVersion: process.release ? process.version : '', version: '6.9.0' },
+            application: { font: 'Inter', language: 'pt', platform: this.deps.platformName || 'linux', platformVersion: process.release ? process.version : '', version: '6.9.0' },
             colors: {
                 buttonMouseOverBackgroundColor: '#464646FF', buttonPressedBackgroundColor: '#303030FF',
                 buttonPressedBorderColor: '#646464FF', buttonPressedTextColor: '#969696FF', highlightColor: '#0078FFFF'
@@ -327,7 +336,7 @@ class ElgatoBridge extends EventEmitter {
                 this.send(this.pluginWs(uuid), { event: 'didReceiveGlobalSettings', payload: { settings: this.globalSettings[uuid] || {} } });
                 break;
             case 'openUrl':
-                if (payload.url && /^https?:\/\//i.test(payload.url)) hostExec.execFile('xdg-open', [payload.url], { timeout: 10000 }, () => {});
+                this.openUrl(payload.url);
                 break;
             case 'logMessage': {
                 const p = this.plugins.get(uuid);
@@ -610,7 +619,7 @@ class ElgatoBridge extends EventEmitter {
                 if (pws) this.send(pws, { event: 'sendToPlugin', action: inst.actionUuid, context: inst.context, payload: msg.payload });
                 break;
             case 'openUrl':
-                if (payload.url && /^https?:\/\//i.test(payload.url)) hostExec.execFile('xdg-open', [payload.url], { timeout: 10000 }, () => {});
+                this.openUrl(payload.url);
                 break;
             case 'logMessage': {
                 const p = this.plugins.get(inst.pluginUuid);

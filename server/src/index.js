@@ -9,11 +9,8 @@ const crypto = require('crypto');
 
 const ConfigStore = require('./config');
 const auth = require('./auth');
-const WindowDetector = require('./windowDetector');
-const HardwareMonitor = require('./hardwareMonitor');
 const PresetManager = require('./presetManager');
-const AudioMixer = require('./audioMixer');
-const SystemActions = require('./actions/systemActions');
+const { createPlatform } = require('./platform');
 const { buildActionCatalog } = require('./actionCatalog');
 
 const OBSProfile = require('./profiles/obs');
@@ -23,8 +20,6 @@ const TeamSpeakProfile = require('./profiles/teamspeak');
 const MeetProfile = require('./profiles/meet');
 const NextcloudProfile = require('./profiles/nextcloud');
 const SpotifyProfile = require('./profiles/spotify');
-const SpotifyMonitor = require('./spotify');
-const MediaPlayers = require('./mediaPlayers');
 const MediaPlayerActions = require('./actions/mediaPlayerActions');
 const FanControl = require('./fanControl');
 const AiUsage = require('./aiUsage');
@@ -33,8 +28,6 @@ const MoreProfile = require('./profiles/more');
 
 const PluginLoader = require('./elgato/pluginLoader');
 const ElgatoBridge = require('./elgato/elgatoBridge');
-const TrayIndicator = require('./tray');
-const AppLauncher = require('./appLauncher');
 const icons = require('./icons.json');
 
 const VERSION = require('../package.json').version;
@@ -102,11 +95,14 @@ class MatDeckServer {
         this.hostAllowlist = new auth.HostAllowlist({ extra: () => (this.config.get('server') || {}).allowedHosts || [] });
         this.devices = new auth.DeviceRegistry(path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'devices.json'));
         this.pairing = new auth.PairingManager(this.devices);
-        this.hardwareMonitor = new HardwareMonitor(1000);
+        // Camada de plataforma: tudo que fala com o sistema (teclas, janelas, apps, áudio, mídia, hardware,
+        // bandeja). Os aliases abaixo mantêm os nomes que o resto do arquivo e os perfis já usam.
+        this.platform = createPlatform();
+        this.hardwareMonitor = this.platform.hardware;
         this.presetManager = new PresetManager(undefined, RESERVED_PROFILE_IDS);
-        this.audioMixer = new AudioMixer();
-        this.spotify = new SpotifyMonitor();
-        this.mediaPlayers = new MediaPlayers();
+        this.audioMixer = this.platform.audio.mixer;
+        this.spotify = this.platform.media.spotify;
+        this.mediaPlayers = this.platform.media.players;
         this.mediaActions = new MediaPlayerActions(this);
         this.fanControl = new FanControl(this.config);
         this.aiUsage = new AiUsage(this.config);
@@ -132,13 +128,15 @@ class MatDeckServer {
             getDeviceSize: () => {
                 const def = this.getProfileDefinition(this.currentProfileId);
                 return { columns: (def && def.cols) || 5, rows: (def && def.rows) || 3 };
-            }
+            },
+            platformName: this.platform.name === 'darwin' ? 'mac' : 'linux',
+            openUrl: (url) => this.platform.apps.open(url)
         });
         this.installedPlugins = [];
-        this.appLauncher = new AppLauncher();
+        this.appLauncher = this.platform.apps.launcher;
         this.appLauncher.list().catch(() => {});
 
-        this.windowDetector = new WindowDetector();
+        this.windowDetector = this.platform.windows.detector;
 
         this.init();
     }
@@ -182,7 +180,7 @@ class MatDeckServer {
             console.log(`   Painel Web & Gerenciador: http://localhost:${HTTP_PORT}`);
             console.log(`   Endereço na Rede Local:   http://${ip}:${HTTP_PORT}`);
             console.log(`   WebSocket para Android:   ws://${ip}:${HTTP_PORT}/deck`);
-            console.log(`   Sessão: ${caps.wayland ? 'Wayland' : 'X11'} ${caps.desktop || ''} | teclas: ${caps.ydotool ? 'ydotool' : (caps.xdotool ? 'xdotool' : 'INDISPONÍVEL')} | foco de janela: ${caps.kdotool ? 'kdotool' : (caps.qdbus ? 'KWin script' : (caps.xdotool ? 'xdotool' : 'INDISPONÍVEL'))} | detecção de janela: ${this.windowDetector.describe()}`);
+            console.log(`   ${this.platform.describe()}`);
             if (caps.wayland && !caps.ydotool) {
                 console.log('   AVISO: ydotool inativo. Rode: sudo systemctl enable --now ydotool');
             }
@@ -192,11 +190,10 @@ class MatDeckServer {
         });
     }
 
-    /** Ícone na bandeja do sistema (scripts/matdeck-tray.py). Desative com ui.tray=false ou MATDECK_TRAY=0. */
+    /** Ícone na bandeja do sistema (pela camada de plataforma). Desative com ui.tray=false ou MATDECK_TRAY=0. */
     startTray(lanIp) {
         const ui = this.config.get('ui') || {};
-        this.tray = new TrayIndicator({ port: HTTP_PORT, lanIp, enabled: ui.tray !== false });
-        this.tray.start();
+        this.platform.tray.start({ port: HTTP_PORT, lanIp, enabled: ui.tray !== false });
     }
 
     // ------------------------------------------------------------------
@@ -275,14 +272,14 @@ class MatDeckServer {
     /** Serve o cache; a sondagem (vários execFileSync, lentos no Flatpak) roda fora da requisição quando o cache vence. */
     getCapabilities() {
         try {
-            if (SystemActions.capabilitiesStale() && !this.capsRefreshing) {
+            if (this.platform.keys.capabilitiesStale() && !this.capsRefreshing) {
                 this.capsRefreshing = true;
                 setImmediate(() => {
-                    try { SystemActions.capabilities(); } catch (e) { console.warn('[MatDeck] Falha ao sondar capacidades do sistema:', e.message); }
+                    try { this.platform.keys.capabilities(); } catch (e) { console.warn('[MatDeck] Falha ao sondar capacidades do sistema:', e.message); }
                     this.capsRefreshing = false;
                 });
             }
-            return SystemActions.capabilitiesCached() || {};
+            return this.platform.keys.capabilitiesCached() || {};
         } catch (e) {
             console.warn('[MatDeck] Falha ao sondar capacidades do sistema:', e.message);
             return {};
@@ -797,6 +794,7 @@ class MatDeckServer {
         this.app.get('/api/status', (req, res) => {
             res.json({
                 version: VERSION,
+                platform: this.platform.name,
                 startedAt: this.startedAt,
                 ip: this.getLocalIp(),
                 port: HTTP_PORT,
@@ -1679,7 +1677,7 @@ class MatDeckServer {
             if (this.shuttingDown) return;
             this.shuttingDown = true;
             console.log('\n[MatDeck] Encerrando...');
-            const trayStopped = this.tray ? this.tray.stop() : Promise.resolve();
+            const trayStopped = this.platform.tray.stop();
             clearInterval(this.heartbeatTimer);
             clearInterval(this.udpTimer);
             clearInterval(this.pairingTimer);
