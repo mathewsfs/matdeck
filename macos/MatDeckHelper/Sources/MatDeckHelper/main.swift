@@ -49,6 +49,8 @@ dispatcher.register("permissions.status") { _ in Permissions.asJSON }
 
 let keyService = KeyService()
 keyService.register(on: dispatcher)
+let windowService = WindowService(emit: { name, data in server.send(Outgoing.event(name: name, data: data).encodeLine()) })
+windowService.register(on: dispatcher)
 
 server.onLine = { line in server.send(dispatcher.handle(line: line)) }
 server.onConnect = { FileHandle.standardError.write(Data("[helper] servidor conectado\n".utf8)) }
