@@ -38,7 +38,19 @@ Primeira versão publicada no GitHub. Entra tudo o que foi construído desde a 1
 - Nenhum erro no log do servidor durante o período
 - CHANGELOG e README revisados
 
-## Próxima: 1.5
+## Próxima: 1.5 — macOS
+
+Camada de sistema isolada (`server/src/platform/`, implementação `linux` e `darwin`) e o **MatDeck Helper**
+em Swift falando JSON com o Node. Limitação conhecida: o macOS não tem volume por aplicativo sem software
+de terceiros; esses faders ficam `n/d`.
+
+- [x] Fase 1: camada de plataforma com atalhos por sistema; Linux sem mudança de comportamento (roteiro KDE aprovado)
+- [x] Fase 2: helper básico (socket, permissões, teclas, janela ativa e foco, apps, volume master, bloqueio, barra de menus); servidor sobe no Mac
+- [ ] Fase 3: telemetria (Mach, IOKit, SMC), Spotify e Music por AppleScript, teclas de mídia nos players
+- [ ] Fase 4: tema do gerenciador com cara de macOS
+- [ ] Fase 5: instalação (app de barra de menus com Node embutido), CI e release; assinatura/notarização quando houver conta de desenvolvedor
+
+## 1.6
 
 - **Segurança**: mascarar segredos em `GET /api/config`, aceitar segredos só por loopback, validar campo a
   campo o `POST /api/config`, `maxPayload` no WebSocket, cota na pasta `media/`
@@ -52,10 +64,6 @@ Primeira versão publicada no GitHub. Entra tudo o que foi construído desde a 1
 
 ## Depois
 
-- **macOS 14+**: camada de sistema isolada (teclas, foco, apps, áudio, mídia, telemetria, bandeja) com
-  implementação Linux e `darwin`; helper em Swift (CGEvent, NSWorkspace, IOKit/SMC, menu bar) falando
-  JSON com o Node; app de menu bar com Node embutido, assinado e notarizado. Limitação conhecida: o
-  macOS não tem volume por aplicativo sem software de terceiros
 - **Windows**: envio de teclas e foco já existem em esboço (PowerShell); faltam áudio, telemetria e
   empacotamento
 - **Cliente Android nativo (APK)**: o código em `android-client/` (Java puro, minSdk 19, WebSocket e
