@@ -45,7 +45,8 @@ em Swift falando JSON com o Node. Limitação conhecida: o macOS não tem volume
 de terceiros; esses faders ficam `n/d`.
 
 - [x] Fase 1: camada de plataforma com atalhos por sistema; Linux sem mudança de comportamento (roteiro KDE aprovado)
-- [x] Fase 2: helper básico (socket, permissões, teclas, janela ativa e foco, apps, volume master, bloqueio, barra de menus); servidor sobe no Mac
+- [x] Fase 2: helper básico (socket, permissões, teclas, janela ativa e foco, apps, volume master, bloqueio, barra de menus); servidor sobe no Mac (PR #2, 25/10/2026; roteiro no Mac físico pendente)
+- [ ] Retomada: ver `docs/superpowers/plans/2026-10-25-macos-onde-paramos.md`
 - [ ] Fase 3: telemetria (Mach, IOKit, SMC), Spotify e Music por AppleScript, teclas de mídia nos players
 - [ ] Fase 4: tema do gerenciador com cara de macOS
 - [ ] Fase 5: instalação (app de barra de menus com Node embutido), CI e release; assinatura/notarização quando houver conta de desenvolvedor
