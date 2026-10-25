@@ -21,6 +21,7 @@ async function start({ socketPath, hello, handlers = {} } = {}) {
         requests: [],
         handlers: { ...handlers },
         client: null,
+        sockets: new Set(),   // todas as conexões (inclusive as recusadas com busy), para fechar tudo no close()
         busyMode: false,
         busyCount: 0,
         setHandler(op, fn) { this.handlers[op] = fn; },
@@ -30,12 +31,16 @@ async function start({ socketPath, hello, handlers = {} } = {}) {
         close() {
             return new Promise((resolve) => {
                 this.disconnectClient();
+                for (const s of this.sockets) { try { s.destroy(); } catch (e) {} }
+                this.sockets.clear();
                 server.close(() => { try { fs.unlinkSync(socketPath); } catch (e) {} resolve(); });
             });
         }
     };
 
     const server = net.createServer((sock) => {
+        fake.sockets.add(sock);
+        sock.on('close', () => fake.sockets.delete(sock));
         if (fake.busyMode || fake.client) {
             fake.busyCount++;
             sock.write(JSON.stringify({ event: 'busy', data: {} }) + '\n');
