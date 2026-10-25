@@ -2039,6 +2039,11 @@ function applyKeyAccessibleName(el, cfg) {
 }
 function attachKeyInteraction(el, cfg) {
   var isSlider = isSliderKey(cfg);
+  if (isSlider && cfg.badge === 'n/d') {
+    el.classList.add('key-unavailable');
+    el.setAttribute('aria-disabled', 'true');
+    return;
+  }
   var wide = isWideKey(cfg);
   var hold = isHoldKey(cfg);
   var appId = sliderAppOf(cfg);

@@ -11,6 +11,7 @@ const ConfigStore = require('./config');
 const auth = require('./auth');
 const PresetManager = require('./presetManager');
 const { createPlatform } = require('./platform');
+const { dataDir } = require('./paths');
 const { buildActionCatalog } = require('./actionCatalog');
 
 const OBSProfile = require('./profiles/obs');
@@ -93,7 +94,7 @@ class MatDeckServer {
         this.autoDetectEnabled = (this.config.get('ui') || {}).autoDetect === true; // nasce desligado; lembra o último estado
         // Acesso: loopback = este PC (gerenciador e API completa); rede = dispositivo emparelhado por PIN
         this.hostAllowlist = new auth.HostAllowlist({ extra: () => (this.config.get('server') || {}).allowedHosts || [] });
-        this.devices = new auth.DeviceRegistry(path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'devices.json'));
+        this.devices = new auth.DeviceRegistry(path.join(dataDir(), 'devices.json'));
         this.pairing = new auth.PairingManager(this.devices);
         // Camada de plataforma: tudo que fala com o sistema (teclas, janelas, apps, áudio, mídia, hardware,
         // bandeja). Os aliases abaixo mantêm os nomes que o resto do arquivo e os perfis já usam.
@@ -118,9 +119,9 @@ class MatDeckServer {
         this.profiles.set('default', new DefaultProfile(this));
         this.profiles.set('more', new MoreProfile(this));
 
-        const pluginsDir = process.env.MATDECK_DATA_DIR ? path.join(process.env.MATDECK_DATA_DIR, 'plugins') : path.resolve(__dirname, '../../plugins');
+        const pluginsDir = (process.env.MATDECK_DATA_DIR || process.platform === 'darwin') ? path.join(dataDir(), 'plugins') : path.resolve(__dirname, '../../plugins');
         // Imagens/GIFs enviados pelo gerenciador para as teclas (nome = hash do conteúdo)
-        this.mediaDir = path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'media');
+        this.mediaDir = path.join(dataDir(), 'media');
         this.pluginLoader = new PluginLoader(pluginsDir);
         this.elgatoBridge = new ElgatoBridge(parseInt(process.env.MATDECK_ELGATO_PORT, 10) || 9876, {
             pluginsDir,
@@ -185,7 +186,7 @@ class MatDeckServer {
                 console.log('   AVISO: ydotool inativo. Rode: sudo systemctl enable --now ydotool');
             }
             console.log('====================================================');
-            if (process.env.FLATPAK_ID) console.log(`   Flatpak: ${process.env.FLATPAK_ID} | dados em ${process.env.MATDECK_DATA_DIR || 'server/data'}`);
+            if (process.env.FLATPAK_ID || process.platform === 'darwin') console.log(`   ${process.env.FLATPAK_ID ? `Flatpak: ${process.env.FLATPAK_ID} | ` : ''}dados em ${dataDir()}`);
             this.startTray(ip);
         });
     }
@@ -504,15 +505,16 @@ class MatDeckServer {
         this.app.post('/api/apps/refresh', async (req, res) => {
             try { res.json({ success: true, apps: await this.appLauncher.list(true) }); } catch (e) { res.status(500).json({ error: e.message }); }
         });
-        this.app.get('/api/apps/:id/icon', (req, res) => {
-            const icon = this.appLauncher.iconOf(req.params.id);
+        // No macOS iconOf/iconDataUrl são assíncronos (ícone pedido ao helper na primeira vez); await é inócuo no Linux
+        this.app.get('/api/apps/:id/icon', async (req, res) => {
+            const icon = await this.appLauncher.iconOf(req.params.id);
             if (!icon) return res.status(404).end();
             res.set('Content-Type', icon.mime);
             res.set('Cache-Control', 'public, max-age=3600');
             res.send(icon.buffer);
         });
-        this.app.get('/api/apps/:id/icon.json', (req, res) => {
-            const dataUrl = this.appLauncher.iconDataUrl(req.params.id);
+        this.app.get('/api/apps/:id/icon.json', async (req, res) => {
+            const dataUrl = await this.appLauncher.iconDataUrl(req.params.id);
             if (!dataUrl) return res.status(404).json({ error: 'Sem ícone' });
             res.json({ icon: dataUrl });
         });
@@ -828,6 +830,7 @@ class MatDeckServer {
             ws.on('pong', () => { ws.isAlive = true; });
 
             this.clients.add(ws);
+            this.platform.tray.update({ clients: this.clients.size });
             const clientIp = req.socket.remoteAddress;
             ws._clientIp = clientIp; // usado pelo diagnóstico remoto de layout
             const who = req.matdeckAuth || auth.classifyRequest(req, this.devices);
@@ -855,6 +858,7 @@ class MatDeckServer {
 
             ws.on('close', () => {
                 this.clients.delete(ws);
+                this.platform.tray.update({ clients: this.clients.size });
                 console.log(`[WebSocket] Cliente desconectado. Restantes: ${this.clients.size}`);
                 if (ws._deviceId && this.devices.get(ws._deviceId)) this.devices.touch(ws._deviceId);
                 if (!this.clients.size) this.releaseHeldKeys();
@@ -966,10 +970,10 @@ class MatDeckServer {
             if (typeof data.profile === 'string') this.switchProfile(data.profile);
         } else if (event === 'setVolume') {
             if (data.app === 'fans') this.fanControl.setAll(Number(data.value));
-            else if (typeof data.app === 'string') this.audioMixer.setVolume(data.app, Number(data.value));
+            else if (typeof data.app === 'string' && this.faderAvailable(data.app)) this.audioMixer.setVolume(data.app, Number(data.value));
         } else if (event === 'toggleMute') {
             if (data.app === 'fans') this.fanControl.toggleAuto().catch((e) => console.warn('[Fans] Falha ao alternar automático:', e.message));
-            else if (typeof data.app === 'string') this.audioMixer.toggleMute(data.app);
+            else if (typeof data.app === 'string' && this.faderAvailable(data.app)) this.audioMixer.toggleMute(data.app);
         } else if (event === 'action') {
             // Botões internos de um bloco (ex.: controles do Spotify): ação direta, sem tecla
             if (typeof data.actionId === 'string' && /^(spotify|media|player):/.test(data.actionId)) this.runAction(data.actionId);
@@ -1154,6 +1158,12 @@ class MatDeckServer {
         return state;
     }
 
+    /** false só quando o mixer da plataforma declara o app como sem controle (`available === false`). */
+    faderAvailable(appId) {
+        const st = this.audioMixer.appState ? this.audioMixer.appState(appId) : null;
+        return !(st && st.available === false);
+    }
+
     /** Sobrepõe estado vivo (faders e ações de outros perfis) na definição estática do perfil. */
     decorateDefinition(def) {
         if (!def.keys) return def;
@@ -1215,6 +1225,10 @@ class MatDeckServer {
             const app = states[key.actionId.split(':')[1]];
             if (!app) return key;
             touched = true;
+            if (app.available === false && app.id !== 'fans') {
+                // Plataforma sem mixer para este app (macOS): fader inerte marcado n/d
+                return { ...key, isSlider: true, sliderApp: app.id, sliderValue: 0, badge: 'n/d', badgeColor: '#6B7280', active: false };
+            }
             if (app.id === 'fans') {
                 return { ...key, isSlider: true, sliderApp: 'fans', sliderValue: app.volume, badge: app.badge, badgeColor: app.badgeColor, autoMode: app.auto, autoAvailable: app.available, active: !app.auto && app.available, bgColor: key.bgColor, borderColor: !app.auto && app.available ? '#F59E0B' : key.borderColor };
             }
@@ -1535,8 +1549,10 @@ class MatDeckServer {
             if (appId === this.mediaActions.audioAppFor(this.mediaPlayers.active)) this.pushPlayerKeys();   // mudo do painel/tecla do player
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
+            const unavailable = !this.faderAvailable(appId);
             for (const key of currentDef.keys) {
                 if (key.actionId === `vol_slider:${appId}` || (key.actionId === 'spotify:mixer' && appId === 'spotify')) {
+                    if (unavailable) { this.updateKey(this.currentProfileId, key.index, { badge: 'n/d', sliderValue: 0, badgeColor: '#6B7280', active: false }); continue; }
                     this.updateKey(this.currentProfileId, key.index, {
                         badge: `${volume}%`,
                         sliderValue: volume,

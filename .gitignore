@@ -23,3 +23,7 @@ server/data/media/
 
 # Workspace das skills de execução de planos (scratch)
 .superpowers/
+
+# Helper do macOS (SwiftPM)
+macos/MatDeckHelper/.build/
+macos/MatDeckHelper/dist/

@@ -37,6 +37,8 @@ function create(options = {}) {
                 tray = new TrayIndicator({ port, lanIp, enabled });
                 tray.start();
             },
+            /** No Linux o PySide6 sonda /api/status sozinho; no macOS o helper recebe o estado por aqui. */
+            update() {},
             stop() { return tray ? tray.stop() : Promise.resolve(); }
         },
         session: { lock: () => system.lock() },

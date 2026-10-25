@@ -5,7 +5,20 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 
 ## [Não lançado]
 
+### Adicionado
+- macOS (beta): o servidor roda no Mac com o **MatDeck Helper**, app nativo em Swift (`macos/MatDeckHelper`)
+  que o servidor inicia sozinho e usa por socket Unix para atalhos e teclas de mídia (CGEvent), janela
+  ativa e foco com troca de aba (Acessibilidade + AppleScript), aplicativos com ícones, volume master
+  (CoreAudio), bloqueio de tela e ícone na barra de menus. Faders sem mixer aparecem como `n/d`. Dados em
+  `~/Library/Application Support/MatDeck`. Sem telemetria, Spotify/mídia nem pacote ainda (ROADMAP 1.5).
+- `GET /api/status` → `capabilities.keysReady` (teclas prontas em qualquer plataforma) e, no Mac,
+  `helper`, `helperVersion`, `accessibility`.
+- Testes: cliente do helper, teclas, janelas, apps, áudio, bandeja e servidor inteiro em modo darwin
+  contra um helper falso (`server/test/fake-helper.js`); integração na VM (`test/integration/darwin-vm.js`).
+
 ### Alterado
+- Chip **Teclas** do gerenciador passa a refletir `capabilities.keysReady`: no Linux fica verde só com
+  ydotool ou xdotool (o kdotool foca janela, mas não envia tecla; antes o chip ficava verde só com ele).
 - O cliente Android (APK) saiu das releases e da CI; o deck é acessado pelo navegador do tablet ou
   celular. O código continua em `android-client/` como experimental (ver ROADMAP).
 - README revisado: capturas de tela do deck, do gerenciador e do PIN; seções "Estrutura" e "Painel web"

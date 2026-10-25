@@ -19,4 +19,4 @@ Marque cada item; qualquer desvio volta para a task correspondente do plano.
 | 10 | Ícone na bandeja: clique com o botão direito → **Parar servidor**. | O servidor encerra e o ícone some. Ao abrir de novo, o ícone volta. | 4, 6 |
 | 11 | Com um plugin Elgato que abre URL instalado (ou pelo Property Inspector), dispare o `openUrl`. | O navegador abre a URL (xdg-open). | 6 |
 
-Resultado: ______ (data, quem testou, itens com desvio).
+Resultado: aprovado em 24/10/2026 pelo dono (Mathews), 11/11 itens sem desvio.

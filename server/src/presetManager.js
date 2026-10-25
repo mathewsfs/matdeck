@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { dataDir } = require('./paths');
 const EventEmitter = require('events');
 const icons = require('./icons.json');
 
@@ -9,7 +10,7 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,40}$/;
 class PresetManager extends EventEmitter {
     constructor(dataPath, reservedIds = []) {
         super();
-        this.dataPath = dataPath || path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'presets.json');
+        this.dataPath = dataPath || path.join(dataDir(), 'presets.json');
         this.reservedIds = new Set(reservedIds); // ids dos perfis embutidos (obs, discord...)
         this.presets = new Map();
         this.init();

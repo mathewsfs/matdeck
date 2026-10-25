@@ -115,6 +115,35 @@ O servidor escuta na rede inteira (o tablet precisa chegar nele), mas o acesso �
 
 ---
 
+## macOS (beta)
+
+O servidor roda no Mac (macOS 14 ou mais novo, Apple Silicon ou Intel) com o mesmo deck, gerenciador e
+perfis. O que fala com o sistema fica no **MatDeck Helper**, um app nativo em Swift sem ícone no Dock que
+o servidor inicia sozinho e com quem conversa por um socket Unix (`macos/MatDeckHelper`).
+
+```bash
+./scripts/build-macos-helper.sh       # gera macos/MatDeckHelper/dist/MatDeck Helper.app (Command Line Tools bastam)
+cd server && npm ci && node src/index.js
+```
+
+Na primeira execução o macOS pergunta se o **MatDeck Helper** pode controlar o computador: ligue-o em
+Ajustes do Sistema → Privacidade e Segurança → **Acessibilidade** (teclas e foco de janela dependem disso;
+o chip **Teclas** do gerenciador fica verde). Trocar de aba no Safari ou no Chrome pede também
+**Automação** na primeira vez. Não há Gravação de Tela. Como o helper é assinado só ad hoc, depois de
+recompilá-lo rode `tccutil reset Accessibility br.com.matdeck.helper` e conceda de novo.
+
+Funciona hoje: atalhos e teclas de mídia (CGEvent, layout do sistema), janela ativa e Auto-Perfil
+(NSWorkspace + Acessibilidade), foco por título com troca de aba (AppleScript), abrir aplicativos e URLs
+com ícones reais, volume master e mudo (CoreAudio), bloquear a tela, ícone na barra de menus com
+estado e menu. Os dados ficam em `~/Library/Application Support/MatDeck`.
+
+Ainda não: telemetria (CPU/GPU/RAM), Spotify e players de mídia, mixer por aplicativo (o macOS não tem
+volume por app sem driver de terceiros: esses faders aparecem como `n/d`), tema do gerenciador com cara
+de macOS, pacote instalável e assinatura. Veja o [ROADMAP](ROADMAP.md). Testado em VM macOS 15 e no
+roteiro `docs/superpowers/plans/2026-10-24-macos-fase2-roteiro-mac.md`.
+
+---
+
 ## Integrações
 
 ### TeamSpeak (TS5 / TS6 e TS3)
@@ -255,7 +284,7 @@ Os ícones das teclas vêm de [Lucide](https://lucide.dev) (ISC) e [Simple Icons
 - Plugins Elgato: só os em Node.js; encoders, `switchToProfile` e plugins nativos de Windows/macOS são ignorados.
 - O gerenciador (`/manage`) é para o navegador do PC; no tablet e no iPad use só o deck. O deck em si roda nos dois: o projeto nasceu num tablet Android 4.4.4 e o iPad 2 (iOS 9) usa o `app.legacy.js`.
 - No iPad a tela cheia é pela Tela de Início (Safari → Compartilhar → "Adicionar à Tela de Início"); aberto como aba comum do Safari a barra de endereço fica visível. "Manter a tela acesa" não existe como API no iOS 9: deixe o Bloqueio Automático do iPad em "Nunca" enquanto usar o deck.
-- Windows e macOS têm só o caminho básico de teclas; o foco do projeto é Linux.
+- macOS está em beta (ver seção acima): sem telemetria, Spotify/mídia e mixer por app. Windows tem só o caminho básico de teclas.
 
 ---
 

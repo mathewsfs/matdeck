@@ -17,17 +17,19 @@ fake.install({ which: { ydotool: null, kdotool: null, pactl: null, playerctl: nu
 fake.resetSrcModules();
 const { createPlatform, platformName } = require(path.join(SRC, 'platform'));
 
-check('platformName padrão é linux nesta máquina', platformName() === 'linux', platformName());
+check('platformName segue process.platform', platformName() === (process.platform === 'darwin' ? 'darwin' : 'linux'), platformName());
 process.env.MATDECK_PLATFORM = 'darwin';
 check('MATDECK_PLATFORM força darwin', platformName() === 'darwin', platformName());
-// Até a fase 2, o macOS usa a camada provisória (os ramos osascript que já existiam) em vez de derrubar o servidor
+// darwin: camada real (helper nativo); sem helper no ar a plataforma sobe e avisa em describe()
+process.env.MATDECK_HELPER_SOCKET = require('path').join(require('os').tmpdir(), `matdeck-sem-helper-${process.pid}.sock`);
+delete process.env.MATDECK_HELPER_APP;
 let darwinPlatform = null; let threw = false;
 try { darwinPlatform = createPlatform(); } catch (e) { threw = true; }
-check('darwin não lança: usa a camada provisória', !threw && darwinPlatform && darwinPlatform.name === 'darwin', darwinPlatform && darwinPlatform.name);
-check('darwin provisório tem as mesmas áreas', darwinPlatform && ['keys', 'windows', 'apps', 'audio', 'media', 'hardware', 'tray', 'session'].every((k) => darwinPlatform[k]));
-check('describe do darwin provisório avisa da fase 2', darwinPlatform && /fase 2/.test(darwinPlatform.describe()), darwinPlatform && darwinPlatform.describe());
-if (darwinPlatform) { darwinPlatform.media.spotify.stop(); darwinPlatform.media.players.stop(); darwinPlatform.hardware.stop(); darwinPlatform.audio.mixer.stop(); }
-delete process.env.MATDECK_PLATFORM;
+check('darwin não lança sem helper', !threw && darwinPlatform && darwinPlatform.name === 'darwin', darwinPlatform && darwinPlatform.name);
+check('darwin tem as mesmas áreas e o helper', darwinPlatform && ['keys', 'windows', 'apps', 'audio', 'media', 'hardware', 'tray', 'session', 'helper'].every((k) => darwinPlatform[k]));
+check('describe do darwin avisa helper ausente', darwinPlatform && /helper: ausente/.test(darwinPlatform.describe()), darwinPlatform && darwinPlatform.describe());
+if (darwinPlatform) { darwinPlatform.helper.stop(); darwinPlatform.media.spotify.stop(); darwinPlatform.media.players.stop(); darwinPlatform.hardware.stop(); darwinPlatform.audio.mixer.stop(); }
+process.env.MATDECK_PLATFORM = 'linux';   // daqui em diante, o adaptador Linux
 
 const p = createPlatform();
 check('name é linux', p.name === 'linux');
@@ -41,7 +43,7 @@ check('session.lock e keys.shortcut existem', typeof p.session.lock === 'functio
 check('tray.start/stop existem', typeof p.tray.start === 'function' && typeof p.tray.stop === 'function');
 const d = p.describe();
 check('describe menciona teclas e foco', /teclas:/.test(d) && /foco de janela:/.test(d) && /detecção de janela:/.test(d), d);
-check('describe começa com a sessão (Wayland/X11)', /^Sessão: Wayland KDE/.test(d), d);
+if (process.platform === 'linux') check('describe começa com a sessão (Wayland/X11)', /^Sessão: Wayland KDE/.test(d), d);
 
 // tray desligada por MATDECK_TRAY=0: start não lança e stop resolve
 p.tray.start({ port: 8899, lanIp: '192.168.0.2', enabled: true });

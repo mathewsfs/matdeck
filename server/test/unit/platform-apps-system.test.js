@@ -4,6 +4,7 @@
 const path = require('path');
 const fake = require('../fake-host-exec');
 const SRC = process.argv[2] || path.join(__dirname, '..', '..', 'src');
+process.env.MATDECK_PLATFORM = 'linux';   // este teste exercita o adaptador Linux
 
 let fails = 0;
 const check = (n, ok, extra) => { console.log((ok ? 'OK  ' : 'FAIL') + ' ' + n + (ok || extra === undefined ? '' : ' -> ' + JSON.stringify(extra))); if (!ok) fails++; };

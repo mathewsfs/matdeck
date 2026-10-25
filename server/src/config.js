@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { dataDir } = require('./paths');
 const EventEmitter = require('events');
 
 const DEFAULTS = {
@@ -78,7 +79,7 @@ function deepMerge(target, source) {
 class ConfigStore extends EventEmitter {
     constructor(filePath) {
         super();
-        this.filePath = filePath || path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'config.json');
+        this.filePath = filePath || path.join(dataDir(), 'config.json');
         this.data = deepMerge(DEFAULTS, {});
         this.load();
     }

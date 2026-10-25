@@ -1918,3 +1918,7 @@ body:not(.corner-hidden) .deck-key[data-index="0"].key-stat-tile .key-stat {
     .key-badge { font-size: 10px; }
     .key-title { font-size: 12px; }
 }
+
+/* Fader sem controle nesta plataforma (macOS: só o master): inerte e esmaecido */
+.deck-key.key-unavailable { opacity: 0.55; cursor: default; }
+.deck-key.key-unavailable .key-slider-fill { background: #4B5563; }
