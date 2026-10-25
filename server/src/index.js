@@ -966,10 +966,10 @@ class MatDeckServer {
             if (typeof data.profile === 'string') this.switchProfile(data.profile);
         } else if (event === 'setVolume') {
             if (data.app === 'fans') this.fanControl.setAll(Number(data.value));
-            else if (typeof data.app === 'string') this.audioMixer.setVolume(data.app, Number(data.value));
+            else if (typeof data.app === 'string' && this.faderAvailable(data.app)) this.audioMixer.setVolume(data.app, Number(data.value));
         } else if (event === 'toggleMute') {
             if (data.app === 'fans') this.fanControl.toggleAuto().catch((e) => console.warn('[Fans] Falha ao alternar automático:', e.message));
-            else if (typeof data.app === 'string') this.audioMixer.toggleMute(data.app);
+            else if (typeof data.app === 'string' && this.faderAvailable(data.app)) this.audioMixer.toggleMute(data.app);
         } else if (event === 'action') {
             // Botões internos de um bloco (ex.: controles do Spotify): ação direta, sem tecla
             if (typeof data.actionId === 'string' && /^(spotify|media|player):/.test(data.actionId)) this.runAction(data.actionId);
@@ -1154,6 +1154,12 @@ class MatDeckServer {
         return state;
     }
 
+    /** false só quando o mixer da plataforma declara o app como sem controle (`available === false`). */
+    faderAvailable(appId) {
+        const st = this.audioMixer.appState ? this.audioMixer.appState(appId) : null;
+        return !(st && st.available === false);
+    }
+
     /** Sobrepõe estado vivo (faders e ações de outros perfis) na definição estática do perfil. */
     decorateDefinition(def) {
         if (!def.keys) return def;
@@ -1215,6 +1221,10 @@ class MatDeckServer {
             const app = states[key.actionId.split(':')[1]];
             if (!app) return key;
             touched = true;
+            if (app.available === false && app.id !== 'fans') {
+                // Plataforma sem mixer para este app (macOS): fader inerte marcado n/d
+                return { ...key, isSlider: true, sliderApp: app.id, sliderValue: 0, badge: 'n/d', badgeColor: '#6B7280', active: false };
+            }
             if (app.id === 'fans') {
                 return { ...key, isSlider: true, sliderApp: 'fans', sliderValue: app.volume, badge: app.badge, badgeColor: app.badgeColor, autoMode: app.auto, autoAvailable: app.available, active: !app.auto && app.available, bgColor: key.bgColor, borderColor: !app.auto && app.available ? '#F59E0B' : key.borderColor };
             }
@@ -1535,8 +1545,10 @@ class MatDeckServer {
             if (appId === this.mediaActions.audioAppFor(this.mediaPlayers.active)) this.pushPlayerKeys();   // mudo do painel/tecla do player
             const currentDef = this.getProfileDefinition(this.currentProfileId);
             if (!currentDef || !currentDef.keys) return;
+            const unavailable = !this.faderAvailable(appId);
             for (const key of currentDef.keys) {
                 if (key.actionId === `vol_slider:${appId}` || (key.actionId === 'spotify:mixer' && appId === 'spotify')) {
+                    if (unavailable) { this.updateKey(this.currentProfileId, key.index, { badge: 'n/d', sliderValue: 0, badgeColor: '#6B7280', active: false }); continue; }
                     this.updateKey(this.currentProfileId, key.index, {
                         badge: `${volume}%`,
                         sliderValue: volume,

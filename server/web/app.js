@@ -1079,6 +1079,12 @@ function applyKeyAccessibleName(el, cfg) {
  */
 function attachKeyInteraction(el, cfg) {
     const isSlider = isSliderKey(cfg);
+    if (isSlider && cfg.badge === 'n/d') {
+        // Fader sem controle nesta plataforma (macOS): não arrasta nem alterna mudo
+        el.classList.add('key-unavailable');
+        el.setAttribute('aria-disabled', 'true');
+        return;
+    }
     const wide = isWideKey(cfg);
     const hold = isHoldKey(cfg);
     const appId = sliderAppOf(cfg);
