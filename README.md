@@ -22,13 +22,13 @@ Canais: **estável** (`vX.Y.Z`) para o dia a dia e **beta** (`vX.Y.Z-beta.N`) pa
 
 ## Como é
 
-![Deck no tablet: teclas do Discord, mídia do navegador, Spotify, telemetria de CPU/GPU/RAM e uso do Claude](docs/images/deck.png)
+![Deck no tablet: teclas de TeamSpeak, Discord, Meet e OBS, bloco do Spotify, fader de volume, telemetria e atalhos do sistema](docs/images/deck.png)
 
-*O deck no tablet (1280×800): Discord, mídia do sistema, Spotify, fader de volume, telemetria e uso de IA numa tela só.*
+*O deck no tablet (1280×800): TeamSpeak, Discord, Meet, OBS, Spotify, fader de volume, telemetria e atalhos do PC numa tela só.*
 
 ![Gerenciador no PC: aparelho desenhado com a grade do perfil, painel de ações à direita e chips de estado](docs/images/manage.png)
 
-*O gerenciador no PC: arraste ações do painel da direita para as teclas; o que você vê é o estado vivo do tablet.*
+*O gerenciador no PC: arraste ações do painel da direita para as teclas; o aparelho desenhado mostra o estado vivo do tablet.*
 
 ![Cartão de emparelhamento no gerenciador com o PIN de 4 dígitos, nome e IP do aparelho e botão Recusar](docs/images/manage-pin.png)
 
