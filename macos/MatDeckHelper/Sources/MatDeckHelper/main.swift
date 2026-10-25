@@ -47,6 +47,9 @@ dispatcher.register("permissions.request") { args in
 }
 dispatcher.register("permissions.status") { _ in Permissions.asJSON }
 
+let keyService = KeyService()
+keyService.register(on: dispatcher)
+
 server.onLine = { line in server.send(dispatcher.handle(line: line)) }
 server.onConnect = { FileHandle.standardError.write(Data("[helper] servidor conectado\n".utf8)) }
 server.onDisconnect = { FileHandle.standardError.write(Data("[helper] servidor desconectado\n".utf8)) }
