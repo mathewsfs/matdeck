@@ -15,4 +15,6 @@ desenvolvimento, `MATDECK_HELPER_APP=<caminho do .app>` e `MATDECK_HELPER_SOCKET
 Falar com ele na mão: `printf '{"id":1,"op":"hello","args":{}}\n' | nc -U ~/Library/Application\ Support/MatDeck/helper.sock`.
 
 Permissões: Acessibilidade (obrigatória; o helper mostra o diálogo do sistema na primeira vez) e, para
-Spotify/Music, Automação. Como a assinatura é ad hoc, cada atualização do helper pede a Acessibilidade de novo.
+Spotify/Music, Automação. Como a assinatura é ad hoc, o TCC guarda o hash daquele build: depois de recompilar, o
+interruptor em Ajustes do Sistema continua ligado mas a permissão não vale (`permissions.status` → false). Rode
+`tccutil reset Accessibility br.com.matdeck.helper`, peça de novo (o servidor faz isso ao iniciar) e ligue outra vez.

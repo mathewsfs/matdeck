@@ -19,6 +19,12 @@ final class SocketServer {
 
     var hasClient: Bool { clientFd >= 0 }
 
+    /// Um cliente que fecha antes de ler a resposta não pode matar o processo com SIGPIPE.
+    private func disableSigpipe(_ fd: Int32) {
+        var on: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+    }
+
     func start() throws {
         let dir = (path as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -50,6 +56,7 @@ final class SocketServer {
     private func acceptClient() {
         let fd = accept(listenFd, nil, nil)
         guard fd >= 0 else { return }
+        disableSigpipe(fd)
         if clientFd >= 0 {
             // Só um servidor MatDeck por vez: o segundo recebe `busy` e é fechado
             let line = Outgoing.event(name: "busy", data: .object([:])).encodeLine()

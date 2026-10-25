@@ -22,6 +22,7 @@ func machineArch() -> String {
     return withUnsafePointer(to: &u.machine) { $0.withMemoryRebound(to: CChar.self, capacity: 256) { String(cString: $0) } }
 }
 
+signal(SIGPIPE, SIG_IGN)   // cliente que fecha cedo gera EPIPE no write, não a morte do processo
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
