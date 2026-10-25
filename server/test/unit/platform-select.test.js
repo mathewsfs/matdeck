@@ -20,9 +20,13 @@ const { createPlatform, platformName } = require(path.join(SRC, 'platform'));
 check('platformName padrão é linux nesta máquina', platformName() === 'linux', platformName());
 process.env.MATDECK_PLATFORM = 'darwin';
 check('MATDECK_PLATFORM força darwin', platformName() === 'darwin', platformName());
-let threw = false;
-try { createPlatform(); } catch (e) { threw = /fase 2/.test(e.message); }
-check('darwin ainda não implementado lança erro claro', threw);
+// Até a fase 2, o macOS usa a camada provisória (os ramos osascript que já existiam) em vez de derrubar o servidor
+let darwinPlatform = null; let threw = false;
+try { darwinPlatform = createPlatform(); } catch (e) { threw = true; }
+check('darwin não lança: usa a camada provisória', !threw && darwinPlatform && darwinPlatform.name === 'darwin', darwinPlatform && darwinPlatform.name);
+check('darwin provisório tem as mesmas áreas', darwinPlatform && ['keys', 'windows', 'apps', 'audio', 'media', 'hardware', 'tray', 'session'].every((k) => darwinPlatform[k]));
+check('describe do darwin provisório avisa da fase 2', darwinPlatform && /fase 2/.test(darwinPlatform.describe()), darwinPlatform && darwinPlatform.describe());
+if (darwinPlatform) { darwinPlatform.media.spotify.stop(); darwinPlatform.media.players.stop(); darwinPlatform.hardware.stop(); darwinPlatform.audio.mixer.stop(); }
 delete process.env.MATDECK_PLATFORM;
 
 const p = createPlatform();

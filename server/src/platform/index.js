@@ -11,10 +11,15 @@ function platformName() {
 
 function createPlatform(options = {}) {
     const name = platformName();
+    const platform = require('./linux').create(options);
     if (name === 'darwin') {
-        throw new Error('Plataforma darwin ainda não implementada (fase 2)');
+        // Até a fase 2 (helper nativo), o macOS usa a camada provisória: os adaptadores Linux delegam a
+        // SystemActions/WindowDetector, que já tinham ramos osascript. Funções limitadas, mas o servidor sobe.
+        console.warn('[Platform] macOS: camada nativa chega na fase 2; usando a camada provisória (teclas e janela ativa por osascript, sem mixer, bandeja nem telemetria).');
+        platform.name = 'darwin';
+        platform.describe = () => 'Sessão: macOS | camada provisória (fase 2 traz o helper nativo)';
     }
-    return require('./linux').create(options);
+    return platform;
 }
 
 module.exports = { createPlatform, platformName };
