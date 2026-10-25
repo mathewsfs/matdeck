@@ -21,7 +21,8 @@ Deck para navegadores antigos (Safari 9 do iPad 2): `server/web/app.legacy.js` Ã
 cd scripts/legacy-build && npm ci && npm run build
 ```
 
-Flatpak local: `./scripts/build-flatpak.sh`. APK: `./scripts/build-apk.sh` (podman ou docker).
+Flatpak local: `./scripts/build-flatpak.sh`. O cliente Android experimental (fora das releases) compila com
+`./scripts/build-apk.sh` (podman ou docker).
 
 ## Testes
 

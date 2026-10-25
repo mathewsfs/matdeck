@@ -25,7 +25,7 @@ origem da conexão (`server/src/auth.js`):
 - **Este PC (loopback)**: acesso total. O gerenciador (`/manage`), a configuração, os presets, os
   plugins e o desligamento só respondem a `localhost`.
 - **Dispositivos da rede**: precisam emparelhar uma vez com um PIN de 4 dígitos que aparece só no
-  gerenciador. O token fica em cookie HttpOnly (ou no cabeçalho `X-MatDeck-Token` no APK); em disco
+  gerenciador. O token fica em cookie HttpOnly (ou no cabeçalho `X-MatDeck-Token`, para clientes nativos); em disco
   vai só o hash SHA-256, em `devices.json` com modo 600. Cinco erros bloqueiam o IP por tempo
   crescente; "Recusar" no gerenciador bloqueia por 10 minutos.
 - **Host e Origin**: o cabeçalho `Host` precisa ser um nome ou IP desta máquina (fecha DNS rebinding)

@@ -1,5 +1,5 @@
 name: Relatar um problema
-description: Algo não funciona como esperado no servidor, no deck, no gerenciador ou no APK
+description: Algo não funciona como esperado no servidor, no deck ou no gerenciador
 labels: ["bug"]
 body:
   - type: markdown
@@ -24,7 +24,7 @@ body:
         - Servidor (a partir do código)
         - Deck no navegador
         - Gerenciador (/manage)
-        - APK Android
+        - Cliente Android experimental (android-client/)
         - Integração (Discord, TeamSpeak, OBS, Meet, Nextcloud, Spotify)
         - Telemetria, ventoinhas ou mixer
     validations:

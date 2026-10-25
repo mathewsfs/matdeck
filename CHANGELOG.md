@@ -5,6 +5,12 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 
 ## [Não lançado]
 
+### Alterado
+- O cliente Android (APK) saiu das releases e da CI; o deck é acessado pelo navegador do tablet ou
+  celular. O código continua em `android-client/` como experimental (ver ROADMAP).
+- README revisado: capturas de tela do deck, do gerenciador e do PIN; seções "Estrutura" e "Painel web"
+  (página antiga) removidas; referências a "⚙ Configurações" viraram "Ajustes" do gerenciador.
+
 ## [1.4.0-beta.1] - 2026-10-24
 
 Primeira versão publicada no GitHub.

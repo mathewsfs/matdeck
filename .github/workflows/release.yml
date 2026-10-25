@@ -1,5 +1,6 @@
 # Release automática a partir de uma tag: `vX.Y.Z` vira estável (Latest), `vX.Y.Z-beta.N` vira pré-release.
-# Anexa o Flatpak (dist/MatDeck.flatpak) e o APK; o texto vem da seção da versão no CHANGELOG.md.
+# Anexa o Flatpak (dist/MatDeck.flatpak); o texto vem da seção da versão no CHANGELOG.md.
+# O cliente Android (android-client/) não entra nas releases por enquanto: o deck é acessado pelo navegador (ver ROADMAP.md).
 name: Release
 
 on:
@@ -33,31 +34,9 @@ jobs:
           path: dist/MatDeck.flatpak
           if-no-files-found: error
 
-  apk:
-    name: APK
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: platforms;android-33 build-tools;33.0.2
-      - name: Gradle
-        working-directory: android-client
-        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
-      - run: cp android-client/app/build/outputs/apk/debug/app-debug.apk MatDeck-debug.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: MatDeck-debug.apk
-          if-no-files-found: error
-
   publicar:
     name: Publicar release
-    needs: [flatpak, apk]
+    needs: [flatpak]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,15 +59,13 @@ jobs:
             echo ""
             echo "### Instalar"
             echo '```bash'
-            echo "flatpak install --user MatDeck.flatpak     # servidor (Linux)"
-            echo "adb install -r MatDeck-debug.apk           # cliente Android 4.4+ (opcional; o navegador também serve)"
+            echo "flatpak install --user MatDeck.flatpak"
             echo '```'
+            echo "No tablet ou celular, abra \`http://<ip-do-pc>:8888\` no navegador e digite o PIN que aparece no gerenciador."
           } >> notas.md
       - uses: softprops/action-gh-release@v2
         with:
           name: MatDeck ${{ github.ref_name }}
           body_path: notas.md
           prerelease: ${{ contains(github.ref_name, '-') }}
-          files: |
-            artefatos/flatpak/MatDeck.flatpak
-            artefatos/apk/MatDeck-debug.apk
+          files: artefatos/flatpak/MatDeck.flatpak

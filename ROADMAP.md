@@ -8,8 +8,8 @@
 | **Beta** | tag `vX.Y.Z-beta.N`, release marcada como *Pre-release* | quem quer testar o que vem na próxima estável e reportar problemas |
 
 As duas saem do branch `main`. Uma beta vira estável quando passa pelo menos uma semana em uso real
-sem regressão, com o deck validado nos três clientes de referência (tablet Android 4.4, iPad 2 com
-Safari 9 e o APK) e com o CHANGELOG fechado. Correções de segurança saem nos dois canais.
+sem regressão, com o deck validado nos dois navegadores de referência (tablet Android 4.4 e iPad 2 com
+Safari 9) e com o CHANGELOG fechado. Correções de segurança saem nos dois canais.
 
 Versões seguem [SemVer](https://semver.org/lang/pt-BR/): `X` quebra compatibilidade (protocolo do
 deck, formato de presets ou config), `Y` adiciona recurso, `Z` corrige.
@@ -28,8 +28,9 @@ Primeira versão publicada no GitHub. Entra tudo o que foi construído desde a 1
 - [x] Imagens e GIFs nas teclas; players de mídia do sistema (MPRIS)
 - [x] Deck compatível com Safari 9 (iPad 2): bundle ES5 e layout sem grid
 - [x] Dependências: adm-zip 0.6.1 e body-parser 1.20.9 (`npm audit` limpo)
-- [ ] Capturas de tela do deck e do gerenciador no README
-- [ ] Validar o PIN no APK e no tablet Android 4.4 (iPad já validado)
+- [x] Releases só com o Flatpak: o deck é acessado pelo navegador, sem instalar nada no aparelho
+- [x] Capturas de tela do deck e do gerenciador no README
+- [ ] Validar o PIN no navegador do tablet Android 4.4 (iPad já validado)
 
 ### Critérios para a 1.4.0 estável
 
@@ -57,6 +58,10 @@ Primeira versão publicada no GitHub. Entra tudo o que foi construído desde a 1
   macOS não tem volume por aplicativo sem software de terceiros
 - **Windows**: envio de teclas e foco já existem em esboço (PowerShell); faltam áudio, telemetria e
   empacotamento
+- **Cliente Android nativo (APK)**: o código em `android-client/` (Java puro, minSdk 19, WebSocket e
+  descoberta UDP próprios, PIN) continua no repositório, mas fora das releases e da CI. A decisão é
+  que o deck rode pelo navegador, porque assim independe do aparelho e do fabricante. O APK volta a
+  ser publicado se aparecer um caso que o navegador não cubra. Para compilar hoje: `./scripts/build-apk.sh`
 - **Bandeja mais leve** que o Python com Qt (hoje 44 MB)
 - **Plugins Elgato**: confirmação e allowlist para instalação por URL
 
