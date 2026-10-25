@@ -38,4 +38,4 @@ tablet (`http://<ip-do-mac>:8888`, PIN no gerenciador). Marque cada item; desvio
 Bundle ids a confirmar (ver `server/src/platform/darwin/bundleIds.js`): TeamSpeak 6 e Nextcloud Talk; anote
 o resultado de `osascript -e 'id of app "TeamSpeak"'`.
 
-Resultado: ______ (data, quem testou, itens com desvio).
+Resultado: parcial na VM em 25/10/2026 (dono): deck, gerenciador, helper e barra de menus funcionam; telemetria não lê (esperado, fase 3). Mac físico: ______ (data, itens com desvio).
