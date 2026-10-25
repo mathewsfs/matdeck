@@ -20,13 +20,15 @@ const { createPlatform, platformName } = require(path.join(SRC, 'platform'));
 check('platformName segue process.platform', platformName() === (process.platform === 'darwin' ? 'darwin' : 'linux'), platformName());
 process.env.MATDECK_PLATFORM = 'darwin';
 check('MATDECK_PLATFORM força darwin', platformName() === 'darwin', platformName());
-// Até a fase 2, o macOS usa a camada provisória (os ramos osascript que já existiam) em vez de derrubar o servidor
+// darwin: camada real (helper nativo); sem helper no ar a plataforma sobe e avisa em describe()
+process.env.MATDECK_HELPER_SOCKET = require('path').join(require('os').tmpdir(), `matdeck-sem-helper-${process.pid}.sock`);
+delete process.env.MATDECK_HELPER_APP;
 let darwinPlatform = null; let threw = false;
 try { darwinPlatform = createPlatform(); } catch (e) { threw = true; }
-check('darwin não lança: usa a camada provisória', !threw && darwinPlatform && darwinPlatform.name === 'darwin', darwinPlatform && darwinPlatform.name);
-check('darwin provisório tem as mesmas áreas', darwinPlatform && ['keys', 'windows', 'apps', 'audio', 'media', 'hardware', 'tray', 'session'].every((k) => darwinPlatform[k]));
-check('describe do darwin provisório avisa da fase 2', darwinPlatform && /fase 2/.test(darwinPlatform.describe()), darwinPlatform && darwinPlatform.describe());
-if (darwinPlatform) { darwinPlatform.media.spotify.stop(); darwinPlatform.media.players.stop(); darwinPlatform.hardware.stop(); darwinPlatform.audio.mixer.stop(); }
+check('darwin não lança sem helper', !threw && darwinPlatform && darwinPlatform.name === 'darwin', darwinPlatform && darwinPlatform.name);
+check('darwin tem as mesmas áreas e o helper', darwinPlatform && ['keys', 'windows', 'apps', 'audio', 'media', 'hardware', 'tray', 'session', 'helper'].every((k) => darwinPlatform[k]));
+check('describe do darwin avisa helper ausente', darwinPlatform && /helper: ausente/.test(darwinPlatform.describe()), darwinPlatform && darwinPlatform.describe());
+if (darwinPlatform) { darwinPlatform.helper.stop(); darwinPlatform.media.spotify.stop(); darwinPlatform.media.players.stop(); darwinPlatform.hardware.stop(); darwinPlatform.audio.mixer.stop(); }
 process.env.MATDECK_PLATFORM = 'linux';   // daqui em diante, o adaptador Linux
 
 const p = createPlatform();

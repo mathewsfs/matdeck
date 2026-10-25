@@ -29,9 +29,15 @@ function createKeys() {
                 });
             });
         },
-        capabilities(force = false) { return SystemActions.capabilities(force); },
+        capabilities(force = false) {
+            const caps = SystemActions.capabilities(force);
+            return caps ? { ...caps, keysReady: !!(caps.ydotool || caps.xdotool) } : caps;
+        },
         capabilitiesStale() { return SystemActions.capabilitiesStale(); },
-        capabilitiesCached() { return SystemActions.capabilitiesCached(); },
+        capabilitiesCached() {
+            const caps = SystemActions.capabilitiesCached();
+            return caps ? { ...caps, keysReady: !!(caps.ydotool || caps.xdotool) } : caps;
+        },
         hostVisibleTmpDir() { return SystemActions.hostVisibleTmpDir(); }
     };
 }

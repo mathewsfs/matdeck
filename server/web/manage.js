@@ -1984,8 +1984,12 @@ async function pollStatus() {
     setChip('chip-discord', dc.authenticated ? 'on' : (dc.authorizing || (!dc.needsSetup && !dc.connected) || caps.ydotool || caps.xdotool ? 'warn' : 'off'), dcText);
     const dcStatus = $('discord-rpc-status');
     if (dcStatus) dcStatus.textContent = dcText;
-    const keysOk = !!(caps.ydotool || caps.kdotool || caps.xdotool);
-    setChip('chip-keys', keysOk ? 'on' : 'off', keysOk ? `Envio de teclas: ${caps.ydotool ? 'ydotool' : caps.kdotool ? 'kdotool' : 'xdotool'}` : 'Nenhuma ferramenta de teclado disponível (ydotool/xdotool)');
+    const mac = caps.platform === 'darwin';
+    const keysOk = typeof caps.keysReady === 'boolean' ? caps.keysReady : !!(caps.ydotool || caps.kdotool || caps.xdotool);
+    const keysTip = mac
+        ? (keysOk ? 'Envio de teclas: MatDeck Helper (Acessibilidade concedida)' : (caps.helper ? 'Conceda Acessibilidade ao MatDeck Helper em Ajustes do Sistema › Privacidade e Segurança' : 'MatDeck Helper não está no ar'))
+        : (keysOk ? `Envio de teclas: ${caps.ydotool ? 'ydotool' : caps.kdotool ? 'kdotool' : 'xdotool'}` : 'Nenhuma ferramenta de teclado disponível (ydotool/xdotool)');
+    setChip('chip-keys', keysOk ? 'on' : 'off', keysTip);
     setAutoUI(!!s.autoDetect);
     if (s.profile && s.profile !== state.current) { state.current = s.profile; renderAll(); }
 }

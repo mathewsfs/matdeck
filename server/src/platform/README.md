@@ -1,13 +1,14 @@
 # Camada de plataforma
 
 Tudo que fala com o sistema operacional passa por aqui. `index.js` escolhe a implementação pela
-`process.platform` (`linux/` hoje; `darwin/` na fase 2 do macOS) e devolve um objeto com as áreas abaixo.
+`process.platform` (`linux/` e `darwin/`) e devolve um objeto com as áreas abaixo. No macOS tudo passa pelo
+`MatDeck Helper` (app nativo em `macos/MatDeckHelper`) via socket Unix; `platform.helper` é o `HelperClient`.
 
 Regra: **perfis, `index.js` e a ponte Elgato só usam `ctx.platform`**. Nenhum deles importa
 `actions/systemActions` ou `hostExec`; nenhum chama `ydotool`, `pactl`, `osascript` ou afins direto.
 A variável `MATDECK_PLATFORM` força a escolha e existe só para os testes.
 
-| Área | Métodos / eventos | Linux | macOS (fase 2) |
+| Área | Métodos / eventos | Linux | macOS |
 |---|---|---|---|
 | `keys` | `shortcut(combo)`, `keyDown(combo)`, `keyUp(combo)`, `mediaKey('play_pause'\|'next'\|'prev')`, `capabilities(force?)`, `capabilitiesStale()`, `capabilitiesCached()`, `hostVisibleTmpDir()` | ydotool/xdotool, playerctl ou teclas XF86 | helper (CGEvent; teclas de mídia `NX_KEYTYPE_*`) |
 | `windows` | `detector` (`start/stop/setEnabled/on('windowChanged')/lastDetected/describe`), `focus({ classHints, titleHints, requireTitle })`, `focusAndSend(target, combo, delayMs)`, `matchProfile(title, app)`, `DETECTABLE_APPS` | KWin/kdotool/Hyprland/Sway/xdotool | helper (NSWorkspace + Acessibilidade; abas por AppleScript) |

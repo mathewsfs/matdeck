@@ -11,6 +11,7 @@ const ConfigStore = require('./config');
 const auth = require('./auth');
 const PresetManager = require('./presetManager');
 const { createPlatform } = require('./platform');
+const { dataDir } = require('./paths');
 const { buildActionCatalog } = require('./actionCatalog');
 
 const OBSProfile = require('./profiles/obs');
@@ -93,7 +94,7 @@ class MatDeckServer {
         this.autoDetectEnabled = (this.config.get('ui') || {}).autoDetect === true; // nasce desligado; lembra o último estado
         // Acesso: loopback = este PC (gerenciador e API completa); rede = dispositivo emparelhado por PIN
         this.hostAllowlist = new auth.HostAllowlist({ extra: () => (this.config.get('server') || {}).allowedHosts || [] });
-        this.devices = new auth.DeviceRegistry(path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'devices.json'));
+        this.devices = new auth.DeviceRegistry(path.join(dataDir(), 'devices.json'));
         this.pairing = new auth.PairingManager(this.devices);
         // Camada de plataforma: tudo que fala com o sistema (teclas, janelas, apps, áudio, mídia, hardware,
         // bandeja). Os aliases abaixo mantêm os nomes que o resto do arquivo e os perfis já usam.
@@ -118,9 +119,9 @@ class MatDeckServer {
         this.profiles.set('default', new DefaultProfile(this));
         this.profiles.set('more', new MoreProfile(this));
 
-        const pluginsDir = process.env.MATDECK_DATA_DIR ? path.join(process.env.MATDECK_DATA_DIR, 'plugins') : path.resolve(__dirname, '../../plugins');
+        const pluginsDir = (process.env.MATDECK_DATA_DIR || process.platform === 'darwin') ? path.join(dataDir(), 'plugins') : path.resolve(__dirname, '../../plugins');
         // Imagens/GIFs enviados pelo gerenciador para as teclas (nome = hash do conteúdo)
-        this.mediaDir = path.join(process.env.MATDECK_DATA_DIR || path.resolve(__dirname, '../data'), 'media');
+        this.mediaDir = path.join(dataDir(), 'media');
         this.pluginLoader = new PluginLoader(pluginsDir);
         this.elgatoBridge = new ElgatoBridge(parseInt(process.env.MATDECK_ELGATO_PORT, 10) || 9876, {
             pluginsDir,
@@ -185,7 +186,7 @@ class MatDeckServer {
                 console.log('   AVISO: ydotool inativo. Rode: sudo systemctl enable --now ydotool');
             }
             console.log('====================================================');
-            if (process.env.FLATPAK_ID) console.log(`   Flatpak: ${process.env.FLATPAK_ID} | dados em ${process.env.MATDECK_DATA_DIR || 'server/data'}`);
+            if (process.env.FLATPAK_ID || process.platform === 'darwin') console.log(`   ${process.env.FLATPAK_ID ? `Flatpak: ${process.env.FLATPAK_ID} | ` : ''}dados em ${dataDir()}`);
             this.startTray(ip);
         });
     }
