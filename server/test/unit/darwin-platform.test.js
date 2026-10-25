@@ -103,7 +103,9 @@ process.env.MATDECK_TRAY = '0';
     const { createPlatform: createPlatform3 } = require(path.join(SRC, 'platform'));
     const p3 = createPlatform3();
     const linuxCaps = p3.keys.capabilities(true);
-    check('linux: keysReady acompanha ydotool/xdotool', linuxCaps.keysReady === !!(linuxCaps.ydotool || linuxCaps.xdotool) && linuxCaps.keysReady === true, linuxCaps);
+    check('linux: keysReady acompanha ydotool/xdotool', linuxCaps.keysReady === !!(linuxCaps.ydotool || linuxCaps.xdotool), linuxCaps);
+    if (process.platform === 'linux') check('linux: keysReady true com ydotool no PATH', linuxCaps.keysReady === true, linuxCaps);
+    else console.log('(pulado: o adaptador Linux só sonda ydotool/xdotool em Linux)');
     p3.media.spotify.stop(); p3.media.players.stop(); p3.hardware.stop(); p3.audio.mixer.stop();
     fakeExec.uninstall();
 
