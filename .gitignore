@@ -20,3 +20,6 @@ server/data/ai-usage.json
 __pycache__/
 *.pyc
 server/data/media/
+
+# Workspace das skills de execução de planos (scratch)
+.superpowers/

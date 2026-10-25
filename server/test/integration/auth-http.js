@@ -139,6 +139,7 @@ setTimeout(async () => {
         check('cookie: /api/session -> device com id', r.data.role === 'device' && r.data.device && r.data.device.id === deviceId, r.data);
         r = await req(lanIp, 'GET', '/api/status', { headers: cookie });
         check('cookie: GET /api/status -> 200', r.status === 200 && r.data.version, r.status);
+        check('GET /api/status informa platform', r.data.platform === 'linux', r.data.platform);
         r = await req(lanIp, 'GET', '/api/hardware', { headers: cookie });
         check('cookie: GET /api/hardware -> 200', r.status === 200, r.status);
         r = await req(lanIp, 'GET', '/media/nao-existe.png', { headers: cookie, raw: true });
