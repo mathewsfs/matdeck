@@ -1,45 +1,10 @@
 const icons = require('../icons.json');
-const SystemActions = require('../actions/systemActions');
-const { exec, which } = require('../hostExec');
 
-const CMD_TIMEOUT_MS = 4000;
-
-// Comandos curtos (volume, bloquear tela): o primeiro que existir vence. Erro vai para o log em vez
-// de sumir — era assim que Vol+/Vol-/Mudo podiam ficar mortos sem ninguém saber.
-function execFirstAvailable(commands) {
-    const chain = commands.map(c => `(${c})`).join(' || ');
-    exec(chain, { timeout: CMD_TIMEOUT_MS }, (err, stdout, stderr) => {
-        if (err) console.log(`[Default] Comando falhou (${commands[0]} …): ${String(stderr || err.message).trim().split('\n')[0]}`);
-    });
-}
-
-// Programas (terminal, calculadora): acha o primeiro binário instalado e abre desanexado, sem a
-// cadeia `a || b`, que reabria o próximo da lista quando o app fechava com erro.
-const binCache = new Map();
-function launchFirstAvailable(candidates, label) {
-    for (const [bin, ...args] of candidates) {
-        if (!binCache.has(bin)) binCache.set(bin, !!which(bin));
-        if (binCache.get(bin)) return SystemActions.launchFile(bin, args);
-    }
-    console.log(`[Default] Nenhum programa encontrado para "${label}" (${candidates.map(c => c[0]).join(', ')})`);
-    return Promise.resolve(false);
-}
-
+// Volume, mídia, programas e bloqueio passam pela camada de plataforma (ctx.platform): no Linux são os
+// mesmos comandos de sempre (wpctl/pactl, playerctl ou teclas XF86, xdg-open, loginctl).
 class DefaultProfile {
     constructor(serverContext) {
         this.ctx = serverContext;
-        // playerctl (MPRIS) é mais confiável que teclas de mídia emuladas; usa só um dos dois
-        this.hasPlayerctl = !!which('playerctl');
-    }
-
-    mediaCommand(playerctlArg, xf86Key) {
-        if (this.hasPlayerctl) {
-            exec(`playerctl ${playerctlArg}`, { timeout: CMD_TIMEOUT_MS }, (err, stdout, stderr) => {
-                if (err) console.log(`[Default] playerctl ${playerctlArg} falhou: ${String(stderr || err.message).trim().split('\n')[0]}`);
-            });
-        } else {
-            SystemActions.sendKey(xf86Key);
-        }
     }
 
     getDefinition() {
@@ -88,42 +53,27 @@ class DefaultProfile {
                 active: auto
             });
         } else if (actionId === 'media:vol_up') {
-            execFirstAvailable([
-                'wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+',
-                'pactl set-sink-volume @DEFAULT_SINK@ +5%',
-                'amixer -D pulse sset Master 5%+'
-            ]);
+            this.ctx.platform.audio.masterStep(5);
         } else if (actionId === 'media:vol_down') {
-            execFirstAvailable([
-                'wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-',
-                'pactl set-sink-volume @DEFAULT_SINK@ -5%',
-                'amixer -D pulse sset Master 5%-'
-            ]);
+            this.ctx.platform.audio.masterStep(-5);
         } else if (actionId === 'media:mute') {
-            execFirstAvailable([
-                'wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle',
-                'pactl set-sink-mute @DEFAULT_SINK@ toggle'
-            ]);
+            this.ctx.platform.audio.masterMuteToggle();
         } else if (actionId === 'media:play_pause') {
-            this.mediaCommand('play-pause', 'XF86AudioPlay');
+            this.ctx.platform.keys.mediaKey('play_pause');
         } else if (actionId === 'media:next') {
-            this.mediaCommand('next', 'XF86AudioNext');
+            this.ctx.platform.keys.mediaKey('next');
         } else if (actionId === 'media:prev') {
-            this.mediaCommand('previous', 'XF86AudioPrev');
+            this.ctx.platform.keys.mediaKey('prev');
         } else if (actionId.startsWith('launch:app:')) {
-            this.ctx.appLauncher.launch(actionId.slice('launch:app:'.length));
+            this.ctx.platform.apps.launcher.launch(actionId.slice('launch:app:'.length));
         } else if (actionId === 'launch:browser') {
-            SystemActions.launchFile('xdg-open', ['https://google.com']);
+            this.ctx.platform.apps.open('https://google.com');
         } else if (actionId === 'launch:calc') {
-            launchFirstAvailable([['kcalc'], ['gnome-calculator'], ['qalculate-gtk'], ['galculator']], 'calculadora');
+            this.ctx.platform.apps.launchFirst([['kcalc'], ['gnome-calculator'], ['qalculate-gtk'], ['galculator']], 'calculadora');
         } else if (actionId === 'launch:term') {
-            launchFirstAvailable([['konsole'], ['x-terminal-emulator'], ['gnome-terminal'], ['xfce4-terminal'], ['alacritty'], ['kitty']], 'terminal');
+            this.ctx.platform.apps.launchFirst([['konsole'], ['x-terminal-emulator'], ['gnome-terminal'], ['xfce4-terminal'], ['alacritty'], ['kitty']], 'terminal');
         } else if (actionId === 'system:lock') {
-            execFirstAvailable([
-                'loginctl lock-session',
-                'qdbus org.freedesktop.ScreenSaver /ScreenSaver Lock',
-                'xdg-screensaver lock'
-            ]);
+            this.ctx.platform.session.lock();
         }
     }
 }

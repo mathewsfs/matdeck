@@ -1,13 +1,20 @@
 const icons = require('../icons.json');
-const SystemActions = require('../actions/systemActions');
+const { forPlatform } = require('../platform/shortcuts');
 
 const DISCORD_FLATPAK = 'com.discordapp.Discord';
 const DISCORD_WINDOW = { classHints: ['discord', 'com.discordapp.discord'], titleHints: ['Discord'] };
 
+// Atalhos do Discord por plataforma (os três primeiros são os padrões de config; o usuário pode mudar)
+const SHORTCUTS = {
+    linux: { ptt: 'ctrl+shift+p', mute: 'ctrl+shift+m', deafen: 'ctrl+shift+d', quickSwitcher: 'ctrl+k', inbox: 'ctrl+i', prevChannel: 'alt+up', nextChannel: 'alt+down', markRead: 'escape' },
+    darwin: { ptt: 'cmd+shift+p', mute: 'cmd+shift+m', deafen: 'cmd+shift+d', quickSwitcher: 'cmd+k', inbox: 'cmd+i', prevChannel: 'alt+up', nextChannel: 'alt+down', markRead: 'escape' }
+};
+const KEYS = forPlatform(SHORTCUTS);
+
 const DEFAULT_CONFIG = {
-    pttKey: 'ctrl+shift+p',      // o usuário precisa configurar o MESMO atalho em Discord > Voz e Vídeo > Push to Talk
-    muteKey: 'ctrl+shift+m',     // atalho padrão do Discord (Toggle Mute)
-    deafenKey: 'ctrl+shift+d',   // atalho padrão do Discord (Toggle Deafen)
+    pttKey: KEYS.ptt,            // o usuário precisa configurar o MESMO atalho em Discord > Voz e Vídeo > Push to Talk
+    muteKey: KEYS.mute,          // atalho padrão do Discord (Toggle Mute)
+    deafenKey: KEYS.deafen,      // atalho padrão do Discord (Toggle Deafen)
     focusDelayMs: 150
 };
 
@@ -159,18 +166,19 @@ class DiscordProfile {
 
     async sendShortcut(combo) {
         const cfg = this.getConfig();
-        return SystemActions.focusAndSend(DISCORD_WINDOW, combo, cfg.focusDelayMs)
+        return this.ctx.platform.windows.focusAndSend(DISCORD_WINDOW, combo, cfg.focusDelayMs)
             .catch((e) => { console.log(`[Discord] Falha ao enviar ${combo}: ${e.message}`); return false; });
     }
 
     async openDiscord() {
-        if (await SystemActions.flatpakInstalled(DISCORD_FLATPAK)) {
-            return SystemActions.launchFile('flatpak', ['run', DISCORD_FLATPAK]);
+        const apps = this.ctx.platform.apps;
+        if (await apps.flatpakInstalled(DISCORD_FLATPAK)) {
+            return apps.launchFile('flatpak', ['run', DISCORD_FLATPAK]);
         }
-        if (SystemActions.commandExists('discord')) {
-            return SystemActions.launchFile('discord', []);
+        if (apps.commandExists('discord')) {
+            return apps.launchFile('discord', []);
         }
-        return SystemActions.launchFile('xdg-open', ['discord://']);
+        return apps.launchFile('xdg-open', ['discord://']);
     }
 
     /** Solta o push-to-talk se o tablet sumiu com a tecla pressionada (mic não fica aberto). */
@@ -190,11 +198,11 @@ class DiscordProfile {
                 // Decidido ao apertar e mantido até soltar, para não desmutar pela API e "soltar" pelo teclado
                 this.pttViaRpc = !!(this.rpcReady() && this.rpc.voice && this.rpc.voice.mode !== 'PUSH_TO_TALK');
                 this.ctx.updateKey('discord', 2, { bgColor: '#16A34A', borderColor: '#4ADE80', badge: 'FALANDO', badgeColor: '#14532D', active: true });
-                if (this.pttViaRpc) this.rpcVoice('mute', false); else SystemActions.keyHold(cfg.pttKey);
+                if (this.pttViaRpc) this.rpcVoice('mute', false); else this.ctx.platform.keys.keyDown(cfg.pttKey);
             } else if (eventType === 'keyUp' && this.pttHeld) {
                 this.pttHeld = false;
                 this.ctx.updateKey('discord', 2, { bgColor: '#1C1D25', borderColor: '#2D303E', badge: 'PTT', badgeColor: '#5865F2', active: false });
-                if (this.pttViaRpc) this.rpcVoice('mute', true); else SystemActions.keyRelease(cfg.pttKey);
+                if (this.pttViaRpc) this.rpcVoice('mute', true); else this.ctx.platform.keys.keyUp(cfg.pttKey);
             }
             return;
         }
@@ -245,27 +253,27 @@ class DiscordProfile {
             case 'discord:focus':
             case 'discord:open':
                 // Um toque só: traz a janela para a frente; se não há janela (fechado ou na bandeja), abre o Discord
-                SystemActions.focusWindow(DISCORD_WINDOW).then((focused) => { if (!focused) this.openDiscord(); });
+                this.ctx.platform.windows.focus(DISCORD_WINDOW).then((focused) => { if (!focused) this.openDiscord(); });
                 break;
 
             case 'discord:quick_switcher':
-                this.sendShortcut('ctrl+k');
+                this.sendShortcut(KEYS.quickSwitcher);
                 break;
 
             case 'discord:inbox':
-                this.sendShortcut('ctrl+i');
+                this.sendShortcut(KEYS.inbox);
                 break;
 
             case 'discord:prev_channel':
-                this.sendShortcut('alt+up');
+                this.sendShortcut(KEYS.prevChannel);
                 break;
 
             case 'discord:next_channel':
-                this.sendShortcut('alt+down');
+                this.sendShortcut(KEYS.nextChannel);
                 break;
 
             case 'discord:mark_read':
-                this.sendShortcut('escape');
+                this.sendShortcut(KEYS.markRead);
                 break;
 
             default:
@@ -275,3 +283,4 @@ class DiscordProfile {
 }
 
 module.exports = DiscordProfile;
+module.exports.SHORTCUTS = SHORTCUTS;

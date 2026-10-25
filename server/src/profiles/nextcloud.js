@@ -1,5 +1,12 @@
 const icons = require('../icons.json');
-const SystemActions = require('../actions/systemActions');
+const { forPlatform } = require('../platform/shortcuts');
+
+// Atalhos do Talk por plataforma (letras iguais; só a busca troca Ctrl por Cmd no Mac)
+const SHORTCUTS = {
+    linux: { mic: 'm', camera: 'v', hand: 'r', fullscreen: 'f', chat: 'c', search: 'ctrl+f', home: 'escape' },
+    darwin: { mic: 'm', camera: 'v', hand: 'r', fullscreen: 'f', chat: 'c', search: 'cmd+f', home: 'escape' }
+};
+const KEYS = forPlatform(SHORTCUTS);
 
 /**
  * Nextcloud Talk (web ou app desktop Electron "Nextcloud Talk", flatpak com.nextcloud.talk).
@@ -116,7 +123,7 @@ class NextcloudProfile {
     }
 
     async sendShortcut(combo) {
-        return SystemActions.focusAndSend(TALK_WINDOW, combo, this.getConfig().focusDelayMs)
+        return this.ctx.platform.windows.focusAndSend(TALK_WINDOW, combo, this.getConfig().focusDelayMs)
             .catch((e) => { console.log(`[Nextcloud] Falha ao enviar ${combo}: ${e.message}`); return false; });
     }
 
@@ -143,44 +150,44 @@ class NextcloudProfile {
         switch (actionId) {
             case 'nc:mute_mic':
                 // Estado otimista: só alterna se o atalho foi enviado com a janela do Talk focada
-                this.sendShortcut('m').then((sent) => {
+                this.sendShortcut(KEYS.mic).then((sent) => {
                     if (!sent) return;
                     this.micMuted = !this.micMuted;
                     this.ctx.updateKey('nextcloud', 0, this.micKey());
                 });
                 break;
             case 'nc:camera':
-                this.sendShortcut('v').then((sent) => {
+                this.sendShortcut(KEYS.camera).then((sent) => {
                     if (!sent) return;
                     this.camOff = !this.camOff;
                     this.ctx.updateKey('nextcloud', 1, this.camKey());
                 });
                 break;
             case 'nc:hand':
-                this.sendShortcut('r').then((sent) => {
+                this.sendShortcut(KEYS.hand).then((sent) => {
                     if (!sent) return;
                     this.handRaised = !this.handRaised;
                     this.ctx.updateKey('nextcloud', 2, this.handKey());
                 });
                 break;
             case 'nc:fullscreen':
-                this.sendShortcut('f');
+                this.sendShortcut(KEYS.fullscreen);
                 break;
             case 'nc:chat':
-                this.sendShortcut('c');
+                this.sendShortcut(KEYS.chat);
                 break;
             case 'nc:search':
-                this.sendShortcut('ctrl+f');
+                this.sendShortcut(KEYS.search);
                 break;
             case 'nc:home':
-                this.sendShortcut('escape');
+                this.sendShortcut(KEYS.home);
                 break;
             case 'nc:focus':
-                SystemActions.focusWindow(TALK_WINDOW);
+                this.ctx.platform.windows.focus(TALK_WINDOW);
                 break;
             case 'nc:open': {
                 const url = this.getConfig().url;
-                if (url) SystemActions.launchFile('xdg-open', [url]);
+                if (url) this.ctx.platform.apps.open(url);
                 else {
                     console.log('[Nextcloud] Defina nextcloud.url em Ajustes para a tecla "Abrir Talk"');
                     if (typeof this.ctx.notify === 'function') this.ctx.notify({ title: 'Nextcloud Talk', text: 'Informe o endereço do Talk em Ajustes → Nextcloud Talk.', level: 'warn' });
@@ -201,3 +208,4 @@ class NextcloudProfile {
 }
 
 module.exports = NextcloudProfile;
+module.exports.SHORTCUTS = SHORTCUTS;

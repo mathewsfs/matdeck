@@ -1,5 +1,12 @@
 const icons = require('../icons.json');
-const SystemActions = require('../actions/systemActions');
+const { forPlatform } = require('../platform/shortcuts');
+
+// Atalhos do próprio Meet por plataforma (no Mac o Meet usa Cmd no lugar de Ctrl, e Ctrl+Cmd para painéis)
+const SHORTCUTS = {
+    linux: { mic: 'ctrl+d', camera: 'ctrl+e', hand: 'ctrl+alt+h', captions: 'c', chat: 'ctrl+alt+c', people: 'ctrl+alt+p', shortcuts: 'ctrl+slash', fullscreen: 'f11', leave: 'ctrl+w' },
+    darwin: { mic: 'cmd+d', camera: 'cmd+e', hand: 'ctrl+cmd+h', captions: 'c', chat: 'ctrl+cmd+c', people: 'ctrl+cmd+p', shortcuts: 'cmd+slash', fullscreen: 'ctrl+cmd+f', leave: 'cmd+w' }
+};
+const KEYS = forPlatform(SHORTCUTS);
 
 // O título precisa conter "Meet" (requireTitle): sem isso o fallback por classe focaria qualquer janela do
 // navegador e Ctrl+D viraria "adicionar favorito". classHints só desempatam entre janelas com "Meet" no título.
@@ -111,7 +118,7 @@ class MeetProfile {
     }
 
     async sendShortcut(combo) {
-        return SystemActions.focusAndSend(MEET_WINDOW, combo, this.getConfig().focusDelayMs)
+        return this.ctx.platform.windows.focusAndSend(MEET_WINDOW, combo, this.getConfig().focusDelayMs)
             .catch((e) => { console.log(`[Meet] Falha ao enviar ${combo}: ${e.message}`); return false; });
     }
 
@@ -127,7 +134,7 @@ class MeetProfile {
         switch (actionId) {
             case 'meet:mute_mic':
                 // Estado otimista: só alterna se o atalho foi enviado com a aba do Meet focada
-                this.sendShortcut('ctrl+d').then((sent) => {
+                this.sendShortcut(KEYS.mic).then((sent) => {
                     if (!sent) return;
                     this.micMuted = !this.micMuted;
                     this.ctx.updateKey('meet', 0, this.micKey());
@@ -135,7 +142,7 @@ class MeetProfile {
                 break;
 
             case 'meet:camera':
-                this.sendShortcut('ctrl+e').then((sent) => {
+                this.sendShortcut(KEYS.camera).then((sent) => {
                     if (!sent) return;
                     this.camOff = !this.camOff;
                     this.ctx.updateKey('meet', 1, this.camKey());
@@ -143,7 +150,7 @@ class MeetProfile {
                 break;
 
             case 'meet:hand':
-                this.sendShortcut('ctrl+alt+h').then((sent) => {
+                this.sendShortcut(KEYS.hand).then((sent) => {
                     if (!sent) return;
                     this.handRaised = !this.handRaised;
                     this.ctx.updateKey('meet', 2, this.handKey());
@@ -151,28 +158,28 @@ class MeetProfile {
                 break;
 
             case 'meet:captions':
-                this.sendShortcut('c');
+                this.sendShortcut(KEYS.captions);
                 break;
 
             case 'meet:chat':
-                this.sendShortcut('ctrl+alt+c');
+                this.sendShortcut(KEYS.chat);
                 break;
 
             case 'meet:people':
-                this.sendShortcut('ctrl+alt+p');
+                this.sendShortcut(KEYS.people);
                 break;
 
             case 'meet:shortcuts':
-                this.sendShortcut('ctrl+slash');
+                this.sendShortcut(KEYS.shortcuts);
                 break;
 
             case 'meet:fullscreen':
-                this.sendShortcut('f11');
+                this.sendShortcut(KEYS.fullscreen);
                 break;
 
             case 'meet:leave':
                 if (this.getConfig().allowCloseTab) {
-                    this.sendShortcut('ctrl+w').then((sent) => {
+                    this.sendShortcut(KEYS.leave).then((sent) => {
                         if (sent) {
                             this.micMuted = false;
                             this.camOff = false;
@@ -181,16 +188,16 @@ class MeetProfile {
                     });
                 } else {
                     console.log('[Meet] "Sair" desabilitado: defina meet.allowCloseTab=true na config para fechar a aba com Ctrl+W');
-                    SystemActions.focusWindow(MEET_WINDOW);
+                    this.ctx.platform.windows.focus(MEET_WINDOW);
                 }
                 break;
 
             case 'meet:focus':
-                SystemActions.focusWindow(MEET_WINDOW);
+                this.ctx.platform.windows.focus(MEET_WINDOW);
                 break;
 
             case 'meet:open':
-                SystemActions.launchFile('xdg-open', ['https://meet.google.com/']);
+                this.ctx.platform.apps.open('https://meet.google.com/');
                 break;
 
             default:
@@ -200,3 +207,4 @@ class MeetProfile {
 }
 
 module.exports = MeetProfile;
+module.exports.SHORTCUTS = SHORTCUTS;

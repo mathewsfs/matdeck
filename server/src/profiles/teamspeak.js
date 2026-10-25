@@ -1,7 +1,6 @@
 const net = require('net');
 const WebSocket = require('ws');
 const icons = require('../icons.json');
-const SystemActions = require('../actions/systemActions');
 
 /**
  * Perfil TeamSpeak.
@@ -1381,7 +1380,7 @@ class TeamSpeakProfile {
                 this.reconnect();
                 break;
             case 'ts:focus':
-                SystemActions.focusWindow(TS_WINDOW);
+                this.ctx.platform.windows.focus(TS_WINDOW);
                 break;
             case 'ts:open':
                 this.openTeamSpeak();
@@ -1425,11 +1424,12 @@ class TeamSpeakProfile {
             const url = this.buildConnectUrl();
             if (url) args.push(url);
         }
-        if (await SystemActions.flatpakInstalled(TS_FLATPAK)) {
-            return SystemActions.launchFile('flatpak', ['run', TS_FLATPAK, ...args]);
+        const apps = this.ctx.platform.apps;
+        if (await apps.flatpakInstalled(TS_FLATPAK)) {
+            return apps.launchFile('flatpak', ['run', TS_FLATPAK, ...args]);
         }
         for (const bin of ['teamspeak', 'TeamSpeak', 'ts3client_linux_amd64']) {
-            if (SystemActions.commandExists(bin)) return SystemActions.launchFile(bin, args);
+            if (apps.commandExists(bin)) return apps.launchFile(bin, args);
         }
         console.log('[TeamSpeak] Cliente TeamSpeak não encontrado (flatpak com.teamspeak.TeamSpeak, teamspeak, TeamSpeak, ts3client_linux_amd64)');
         this.notify({ level: 'warn', title: 'TeamSpeak', text: 'Cliente TeamSpeak não encontrado neste PC' });
