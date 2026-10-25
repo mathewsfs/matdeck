@@ -8,12 +8,12 @@ let fails = 0;
 const check = (n, ok, extra) => { console.log((ok ? 'OK  ' : 'FAIL') + ' ' + n + (ok || extra === undefined ? '' : ' -> ' + JSON.stringify(extra))); if (!ok) fails++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-delete process.env.MATDECK_PLATFORM;
+process.env.MATDECK_PLATFORM = 'linux';   // os perfis são exercitados com as tabelas do Linux
 const { forPlatform } = require(path.join(SRC, 'platform', 'shortcuts'));
 
 check('forPlatform cai para linux', forPlatform({ linux: { a: 1 } }, 'darwin').a === 1);
 check('forPlatform escolhe darwin', forPlatform({ linux: { a: 1 }, darwin: { a: 2 } }, 'darwin').a === 2);
-check('forPlatform sem nome usa a plataforma atual (linux aqui)', forPlatform({ linux: { a: 1 }, darwin: { a: 2 } }).a === 1);
+check('forPlatform sem nome usa a plataforma atual (linux fixado)', forPlatform({ linux: { a: 1 }, darwin: { a: 2 } }).a === 1);
 
 // Plataforma falsa: registra chamadas como 'area.metodo:arg'
 const calls = [];

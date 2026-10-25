@@ -3,6 +3,8 @@
 const path = require('path');
 const fake = require('../fake-host-exec');
 const SRC = process.argv[2] || path.join(__dirname, '..', '..', 'src');
+process.env.MATDECK_PLATFORM = 'linux';   // este teste exercita o adaptador Linux
+if (process.platform !== 'linux') { console.log('(pulado: o adaptador Linux usa ydotool/kdotool e só roda em Linux)'); process.exit(0); }
 
 let fails = 0;
 const check = (n, ok, extra) => { console.log((ok ? 'OK  ' : 'FAIL') + ' ' + n + (ok || extra === undefined ? '' : ' -> ' + JSON.stringify(extra))); if (!ok) fails++; };
