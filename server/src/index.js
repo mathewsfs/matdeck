@@ -828,6 +828,7 @@ class MatDeckServer {
             ws.on('pong', () => { ws.isAlive = true; });
 
             this.clients.add(ws);
+            this.platform.tray.update({ clients: this.clients.size });
             const clientIp = req.socket.remoteAddress;
             ws._clientIp = clientIp; // usado pelo diagnóstico remoto de layout
             const who = req.matdeckAuth || auth.classifyRequest(req, this.devices);
@@ -855,6 +856,7 @@ class MatDeckServer {
 
             ws.on('close', () => {
                 this.clients.delete(ws);
+                this.platform.tray.update({ clients: this.clients.size });
                 console.log(`[WebSocket] Cliente desconectado. Restantes: ${this.clients.size}`);
                 if (ws._deviceId && this.devices.get(ws._deviceId)) this.devices.touch(ws._deviceId);
                 if (!this.clients.size) this.releaseHeldKeys();

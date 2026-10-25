@@ -56,6 +56,8 @@ let appsService = AppsService()
 appsService.register(on: dispatcher)
 let audioService = AudioService(emit: { name, data in server.send(Outgoing.event(name: name, data: data).encodeLine()) })
 audioService.register(on: dispatcher)
+let trayService = TrayService(emit: { name, data in server.send(Outgoing.event(name: name, data: data).encodeLine()) })
+trayService.register(on: dispatcher)
 
 server.onLine = { line in server.send(dispatcher.handle(line: line)) }
 server.onConnect = { FileHandle.standardError.write(Data("[helper] servidor conectado\n".utf8)) }

@@ -15,7 +15,7 @@ A variável `MATDECK_PLATFORM` força a escolha e existe só para os testes.
 | `audio` | `mixer` (`AudioMixer`: `getAll/setVolume/adjustVolume/toggleMute/on('volumeChange')/stop`), `masterStep(±n)`, `masterMuteToggle()` | pactl/wpctl | CoreAudio para master; `spotify` via `media`; demais `available:false` |
 | `media` | `spotify` (`SpotifyMonitor`), `players` (`MediaPlayers`) | MPRIS via busctl | AppleScript (Spotify, Music); outros só transporte |
 | `hardware` | `HardwareMonitor` (`start/stop/setActive/currentStats/on('stats')`) | `/sys`, nvidia-smi, sensors | helper (Mach, IOKit, SMC/HID) |
-| `tray` | `start({ port, lanIp, enabled })`, `stop(): Promise` | PySide6 | item na barra de menus no helper |
+| `tray` | `start({ port, lanIp, enabled })`, `update({ clients })`, `stop(): Promise` | PySide6 (`update` inerte: sonda /api/status) | item na barra de menus no helper (`update` muda a cor do ponto) |
 | `session` | `lock()` | loginctl / qdbus / xdg-screensaver | helper |
 | `describe()` | linha de sessão para o log de início | | |
 
