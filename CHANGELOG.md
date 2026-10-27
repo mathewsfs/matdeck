@@ -16,6 +16,11 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 - Testes: cliente do helper, teclas, janelas, apps, áudio, bandeja e servidor inteiro em modo darwin
   contra um helper falso (`server/test/fake-helper.js`); integração na VM (`test/integration/darwin-vm.js`).
 
+### Corrigido
+- Deck no iPad 2 (Safari 9, sem CSS Grid): depois de muito tempo parado as teclas viravam barras
+  achatadas no topo da tela. O Safari entregava um `innerHeight` quase zero ao acordar e nada
+  recalculava; agora a altura absurda é ignorada e reconferida (pageshow, visibilitychange e vigia).
+
 ### Alterado
 - Chip **Teclas** do gerenciador passa a refletir `capabilities.keysReady`: no Linux fica verde só com
   ydotool ou xdotool (o kdotool foca janela, mas não envia tecla; antes o chip ficava verde só com ele).

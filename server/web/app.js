@@ -1851,15 +1851,43 @@ applyTheme(storageGet(THEME_KEY) === 'light' ? 'light' : 'dark');
 applyFontSize(storageGet(FONT_KEY) || 'm');
 refreshFullscreenLabel();
 
-// Altura real da janela (navegadores móveis mudam innerHeight com a barra de endereço)
+// Altura real da janela (navegadores móveis mudam innerHeight com a barra de endereço). Sem CSS Grid as
+// teclas são posicionadas por % dessa altura, então um valor absurdo (o Safari 9 do iPad entrega innerHeight
+// quase zero ao acordar, sem resize depois) achataria a grade em barras no topo: é ignorado e retentado.
+const VIEWPORT_RETRY_MS = 500;
+let viewportRetryTimer = null;
+let viewportApplied = 0;
+
+/** Maior entre innerHeight e clientHeight; null se ficar abaixo de 40% do menor lado da tela (ou 200 px). */
+function pickViewportHeight(win, scr) {
+    const vals = [win && win.innerHeight, win && win.document && win.document.documentElement && win.document.documentElement.clientHeight];
+    let h = 0;
+    for (let i = 0; i < vals.length; i++) { const v = Number(vals[i]); if (isFinite(v) && v > h) h = v; }
+    const side = scr && isFinite(Number(scr.width)) && isFinite(Number(scr.height)) ? Math.min(Number(scr.width), Number(scr.height)) : 0;
+    const floor = side > 0 ? side * 0.4 : 200;
+    return h >= floor ? Math.round(h) : null;
+}
+
 function syncViewportHeight() {
     try {
-        document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+        const h = pickViewportHeight(window, typeof screen !== 'undefined' ? screen : null);
+        if (h === null) {
+            if (!viewportRetryTimer) viewportRetryTimer = setTimeout(function () { viewportRetryTimer = null; syncViewportHeight(); }, VIEWPORT_RETRY_MS);
+            return;
+        }
+        if (h === viewportApplied) return;
+        viewportApplied = h;
+        document.documentElement.style.setProperty('--app-h', h + 'px');
     } catch (e) {}
 }
 syncViewportHeight();
 window.addEventListener('resize', syncViewportHeight);
 window.addEventListener('orientationchange', function () { setTimeout(syncViewportHeight, 300); });
+// Voltando do segundo plano (tela apagada, outro app): o iOS pode não disparar resize, e o valor certo
+// chega com atraso; confere já, logo depois e num vigia barato
+window.addEventListener('pageshow', function () { syncViewportHeight(); setTimeout(syncViewportHeight, 300); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { syncViewportHeight(); setTimeout(syncViewportHeight, 300); } });
+setInterval(syncViewportHeight, 2000);
 
 startSession();
 window.MATDECK_APP_BOOTED = true; // o carregador do index.html acusa se a inicialização parou antes daqui
