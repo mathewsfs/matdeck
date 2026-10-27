@@ -31,4 +31,11 @@ case "${1:-}" in
 esac
 
 cd /app/share/matdeck/server || exit 1
-exec node src/index.js
+# Sai com 75 (/api/restart pela bandeja): sobe de novo; qualquer outro código encerra de vez
+while :; do
+    node src/index.js
+    rc=$?
+    [ "$rc" -eq 75 ] || exit "$rc"
+    echo "[MatDeck] Reiniciando o servidor..."
+    sleep 1
+done

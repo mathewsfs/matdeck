@@ -6,6 +6,9 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 ## [Não lançado]
 
 ### Adicionado
+- "Reiniciar servidor" no menu do ícone da bandeja (Linux): `POST /api/restart` (só do próprio PC) encerra
+  com código 75 e o lançador (`start-server.sh` ou o Flatpak) sobe o servidor de novo. Serve para aplicar
+  uma atualização do Flatpak sem fechar e abrir o app.
 - macOS (beta): o servidor roda no Mac com o **MatDeck Helper**, app nativo em Swift (`macos/MatDeckHelper`)
   que o servidor inicia sozinho e usa por socket Unix para atalhos e teclas de mídia (CGEvent), janela
   ativa e foco com troca de aba (Acessibilidade + AppleScript), aplicativos com ícones, volume master
