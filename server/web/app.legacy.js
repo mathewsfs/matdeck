@@ -3020,9 +3020,33 @@ renderSkeletonGrid();
 applyTheme(storageGet(THEME_KEY) === 'light' ? 'light' : 'dark');
 applyFontSize(storageGet(FONT_KEY) || 'm');
 refreshFullscreenLabel();
+var VIEWPORT_RETRY_MS = 500;
+var viewportRetryTimer = null;
+var viewportApplied = 0;
+function pickViewportHeight(win, scr) {
+  var vals = [win && win.innerHeight, win && win.document && win.document.documentElement && win.document.documentElement.clientHeight];
+  var h = 0;
+  for (var i = 0; i < vals.length; i++) {
+    var v = Number(vals[i]);
+    if (isFinite(v) && v > h) h = v;
+  }
+  var side = scr && isFinite(Number(scr.width)) && isFinite(Number(scr.height)) ? Math.min(Number(scr.width), Number(scr.height)) : 0;
+  var floor = side > 0 ? side * 0.4 : 200;
+  return h >= floor ? Math.round(h) : null;
+}
 function syncViewportHeight() {
   try {
-    document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+    var h = pickViewportHeight(window, typeof screen !== 'undefined' ? screen : null);
+    if (h === null) {
+      if (!viewportRetryTimer) viewportRetryTimer = setTimeout(function () {
+        viewportRetryTimer = null;
+        syncViewportHeight();
+      }, VIEWPORT_RETRY_MS);
+      return;
+    }
+    if (h === viewportApplied) return;
+    viewportApplied = h;
+    document.documentElement.style.setProperty('--app-h', h + 'px');
   } catch (e) {}
 }
 syncViewportHeight();
@@ -3030,5 +3054,16 @@ window.addEventListener('resize', syncViewportHeight);
 window.addEventListener('orientationchange', function () {
   setTimeout(syncViewportHeight, 300);
 });
+window.addEventListener('pageshow', function () {
+  syncViewportHeight();
+  setTimeout(syncViewportHeight, 300);
+});
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') {
+    syncViewportHeight();
+    setTimeout(syncViewportHeight, 300);
+  }
+});
+setInterval(syncViewportHeight, 2000);
 startSession();
 window.MATDECK_APP_BOOTED = true;
