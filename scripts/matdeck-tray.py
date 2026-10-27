@@ -166,6 +166,9 @@ class Tray(QObject):
         self.menu.addAction(act_deck)
         self.menu.addSeparator()
 
+        self.act_restart = QAction('Reiniciar servidor')
+        self.act_restart.triggered.connect(self.restart_server)
+        self.menu.addAction(self.act_restart)
         self.act_stop = QAction('Parar servidor')
         self.act_stop.triggered.connect(self.stop_server)
         self.menu.addAction(self.act_stop)
@@ -243,6 +246,20 @@ class Tray(QObject):
         if not self.announced and QSystemTrayIcon.supportsMessages():
             self.announced = True
             self.tray.showMessage('MatDeck no ar', f'http://{ip}:{status.get("port") or PORT}', self.icons['running'], 3500)
+
+    def restart_server(self):
+        # O servidor sai com código 75 e o lançador (start-server.sh / Flatpak) sobe outro, que abre uma
+        # bandeja nova; esta some junto com o servidor atual (stdin fechado).
+        try:
+            req = urllib.request.Request(f'{BASE_URL}/api/restart', data=b'{}', method='POST',
+                                         headers={'Content-Type': 'application/json'})
+            urllib.request.urlopen(req, timeout=2).read()
+        except Exception:
+            return
+        self.act_restart.setEnabled(False)
+        self.act_stop.setEnabled(False)
+        self.header.setText('MatDeck · reiniciando…')
+        QTimer.singleShot(4000, self.app.quit)
 
     def stop_server(self):
         try:

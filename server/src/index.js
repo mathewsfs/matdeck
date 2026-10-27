@@ -743,6 +743,16 @@ class MatDeckServer {
             res.json({ success: true });
             setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100);
         });
+        // Reiniciar pela bandeja: encerra igual ao shutdown, mas sai com RESTART_EXIT_CODE; o lançador
+        // (start-server.sh, flatpak/matdeck.sh) vê esse código e sobe o servidor de novo
+        this.app.post('/api/restart', (req, res) => {
+            const ip = (req.socket.remoteAddress || '').replace('::ffff:', '');
+            if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) return res.status(403).json({ error: 'Só a partir desta máquina' });
+            res.json({ success: true });
+            console.log('[MatDeck] Reiniciando a pedido da bandeja...');
+            process.exitCode = MatDeckServer.RESTART_EXIT_CODE;
+            setTimeout(() => process.kill(process.pid, 'SIGTERM'), 100);
+        });
 
         // Diagnóstico remoto: POST pede o layout a todos os decks; GET devolve o último de cada IP
         this.app.post('/api/debug/layout', (req, res) => {
@@ -1687,6 +1697,9 @@ class MatDeckServer {
     // ------------------------------------------------------------------
     // Encerramento
     // ------------------------------------------------------------------
+
+    /** Código de saída que diz ao lançador para subir o servidor de novo (75 = EX_TEMPFAIL, "tente de novo"). */
+    static get RESTART_EXIT_CODE() { return 75; }
 
     setupShutdown() {
         const shutdown = async () => {

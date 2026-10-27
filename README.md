@@ -99,7 +99,7 @@ Como funciona: o Node roda dentro do sandbox e tudo que precisa do sistema (ydot
 
 ### Ícone na bandeja do sistema
 
-Enquanto o servidor roda, um ícone do MatDeck fica na bandeja do KDE com um ponto de estado: **verde** com tablet conectado, **âmbar** no ar sem tablet, **cinza** se o servidor parou de responder. O tooltip mostra o endereço na rede, quantos tablets estão conectados e o estado do TeamSpeak. Clique abre o gerenciador; o menu tem "Abrir deck", "Parar servidor" e "Ocultar ícone" (só esconde, o servidor continua). O ícone some sozinho quando o servidor é encerrado.
+Enquanto o servidor roda, um ícone do MatDeck fica na bandeja do KDE com um ponto de estado: **verde** com tablet conectado, **âmbar** no ar sem tablet, **cinza** se o servidor parou de responder. O tooltip mostra o endereço na rede, quantos tablets estão conectados e o estado do TeamSpeak. Clique abre o gerenciador; o menu tem "Abrir deck", "Reiniciar servidor" (útil depois de atualizar o Flatpak: o lançador sobe o servidor de novo e o ícone volta), "Parar servidor" e "Ocultar ícone" (só esconde, o servidor continua). O ícone some sozinho quando o servidor é encerrado.
 
 Precisa de `python3-pyside6`. Para desligar: `"ui": { "tray": false }` em `server/data/config.json` ou `MATDECK_TRAY=0 ./start-server.sh`.
 
