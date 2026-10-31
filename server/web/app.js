@@ -903,7 +903,7 @@ function createKeyElement(cfg) {
     const isSlider = isSliderKey(cfg);
     const hasAction = !!(cfg.actionId || cfg.title || isSlider || (cfg.imageFill && cfg.icon));   // imagem/GIF decorativa não é tecla vazia
 
-    el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') +
+    el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (cfg.pulse ? ' key-pulse' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') +
         (isTallKey(cfg) ? ' key-tall' : '') + (isWideKey(cfg) ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
     el.id = `deck-key-${cfg.index}`;
     el.setAttribute('role', isSlider ? 'slider' : 'button');
