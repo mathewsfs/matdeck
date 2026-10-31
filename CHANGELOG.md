@@ -6,6 +6,12 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 ## [Não lançado]
 
 ### Adicionado
+- Grupo **Data (assistente de voz)**, para o assistente de voz local (API em `http://127.0.0.1:8765`):
+  **Data: falar** (toque alterna a escuta, segurar interrompe; selo PRONTA/OUVINDO/TRANSCREVENDO/PENSANDO/
+  FALANDO/OFF com cores e pulso enquanto ouve), **Data: parar**, **Data: escuta livre** (ON/OFF) e
+  **Data: status** (2×1: estado, cérebro, escuta livre e STT). Estado em tempo real pelo WebSocket da Data,
+  com sondagem HTTP de reserva e reconexão em backoff quando ela está fora do ar (teclas em cinza).
+  Endereço em Ajustes → Data (`data.url`, ou `MATDECK_DATA_URL`). Módulo: `src/dataAssistant.js`.
 - "Reiniciar servidor" no menu do ícone da bandeja (Linux): `POST /api/restart` (só do próprio PC) encerra
   com código 75 e o lançador (`start-server.sh` ou o Flatpak) sobe o servidor de novo. Serve para aplicar
   uma atualização do Flatpak sem fechar e abrir o app.

@@ -615,7 +615,7 @@ function isKeyMuted(cfg) {
 
 /** Teclas de "segurar": keyDown na hora do toque e keyUp ao soltar (push-to-talk), em vez do par no soltar. */
 function isHoldKey(cfg) {
-    return /^(discord:ptt|ts:ptt|ts:whisper)$/.test(String((cfg && cfg.actionId) || ''));
+    return /^(discord:ptt|ts:ptt|ts:whisper|data:talk)$/.test(String((cfg && cfg.actionId) || ''));
 }
 
 function isSliderKey(cfg) {
@@ -1271,7 +1271,7 @@ function updateSingleKeyUI(index) {
     const isSlider = isSliderKey(cfg);
     const pressed = el.classList.contains('is-pressed');
     const draggingNow = el.classList.contains('is-dragging');
-    el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') +
+    el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (cfg.pulse ? ' key-pulse' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') +
         (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track:not(.key-slider-track-h)') ? ' key-tall' : '') +
         (el.querySelector('.key-slider-track-h') ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') +
         (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') +
