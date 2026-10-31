@@ -84,6 +84,7 @@ const ICONS = {
     fan: { lucide: 'fan' },
     claude: { simple: 'anthropic', fill: '#D97757' },
     openai: { simple: 'openai', fill: '#E6E8EF' },
+    data: { lucide: 'circle-dot-dashed' },
 
     // --- OBS ---
     studio: { lucide: 'layout-panel-left' },

@@ -2254,6 +2254,7 @@ function validateConfigFields() {
             if (Number.isNaN(n) || n < 1 || n > 65535) error = 'Informe um número entre 1 e 65535.';
         }
         if (el.dataset.path === 'obs.url' && el.value && !/^wss?:\/\/.+/i.test(el.value.trim())) error = 'O endereço deve começar com ws:// ou wss://.';
+        if (el.dataset.path === 'data.url' && el.value && !/^https?:\/\/.+/i.test(el.value.trim())) error = 'O endereço deve começar com http:// ou https://.';
         const group = el.closest('.control-group');
         let errEl = group && group.querySelector('.field-error');
         if (error) {
