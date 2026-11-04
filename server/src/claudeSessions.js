@@ -20,6 +20,11 @@
  * negada não disparam `Stop`; a interrupção posterior ao último evento do hook deixa a sessão "livre", como no relógio).
  * Terminal fechado sem `SessionEnd` fica "done" até staleMinutes.
  *
+ * Mascote: GIFs por estado (working/waiting/done/idle/limit.gif, os do Mascot Studio que o relógio usa) numa pasta do host
+ * configurada em claude.mascotDir; ficam fora do repositório (licença de terceiros). O servidor lê pelo host e serve em
+ * /api/claude/mascot/<estado>.gif; a tecla recebe `statMascot` com a URL do estado geral ("limit" quando a semana de
+ * consumo do Claude passa de LIMIT_PCT e nada está rodando, como no relógio).
+ *
  * Foco (handleAction): primeiro só pelos PIDs da cadeia do terminal; se falhar, pela classe da janela (term_program).
  * Com o kdotool instalado as dicas de classe são buscadas antes dos PIDs e poderiam focar outro Konsole/Maestri.
  */
@@ -79,6 +84,12 @@ const TAIL_SH = [
 ].join('\n');
 
 const WRITE_SH = 'mkdir -p "$(dirname "$1")" && cat > "$1.tmp" && mv -f "$1.tmp" "$1"';
+
+// GIFs do mascote na pasta: `<mtime> <nome>` por arquivo
+const MASCOT_SH = 'for f in "$1"/*.gif; do [ -f "$f" ] || continue; echo "$(stat -c %Y -- "$f" 2>/dev/null || stat -f %m -- "$f" 2>/dev/null || echo 0) ${f##*/}"; done';
+const MASCOT_STATES = ['working', 'waiting', 'done', 'idle', 'limit'];
+const LIMIT_PCT = 90;               // semana do Claude acima disso, com nada rodando, mostra o mascote "quase no limite"
+const MASCOT_RESCAN_MS = 60000;
 
 const str = (v, fallback = '') => (typeof v === 'string' ? v : (v === null || v === undefined ? fallback : String(v)));
 const num = (v, fallback) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : fallback);
@@ -253,7 +264,7 @@ function sinceText(seconds) {
 const clip = (text, max) => (text.length > max ? text.slice(0, max - 1) + '…' : text);
 
 /** Aparência de uma tecla `claude:*` (campos do updateKey; null para ações desconhecidas). */
-function keyStateFor(actionId, summary, slots = 4) {
+function keyStateFor(actionId, summary, slots = 4, mascot = null) {
     const id = String(actionId);
     if (id !== 'claude:summary') return null;
     // A lista do relógio: uma linha por sessão na ordem de prioridade (nome · atividade · tempo, barra na cor do estado),
@@ -287,7 +298,8 @@ function keyStateFor(actionId, summary, slots = 4) {
         bgColor: waiting > 0 ? WAITING_BG : undefined,
         borderColor: waiting > 0 ? WAITING_BORDER : undefined,
         active: working + waiting > 0,
-        badge: null
+        badge: null,
+        statMascot: mascot || null
     };
 }
 
@@ -338,6 +350,10 @@ class ClaudeSessions extends EventEmitter {
         this.scanIdleMs = opts.scanIdleMs || SCAN_IDLE_MS;
         this.tickMs = opts.tickMs || TICK_MS;
         this.records = [];
+        this.weeklyPercent = typeof opts.weeklyPercent === 'function' ? opts.weeklyPercent : () => null;
+        this.mascots = new Map();        // estado -> mtime do GIF na pasta
+        this.mascotCache = new Map();    // 'estado@mtime' -> Buffer
+        this.mascotScannedAt = 0;
         this.transcripts = new Map();   // transcript_path -> { offset, title, aiTitle, interrupted }
         this.summary = aggregate([], this.now(), DEFAULT_TTL);
         this.dirExists = false;
@@ -349,7 +365,7 @@ class ClaudeSessions extends EventEmitter {
         this.scanPromise = null;
         this.scanTimer = null;
         this.tickTimer = null;
-        this.lastKeys = [this.summary.key, this.summary.tool_key, this.summary.since_key];
+        this.lastKeys = [this.summary.key, this.summary.tool_key, this.summary.since_key, null];
         this.loggedScanError = false;
         this.loggedInstallError = false;
     }
@@ -361,6 +377,7 @@ class ClaudeSessions extends EventEmitter {
         return {
             dir: expandHome(process.env.MATDECK_CLAUDE_STATE_DIR || str(cfg.sessionsDir).trim() || DEFAULT_DIR),
             slots: Math.max(1, Math.min(MAX_SLOTS, Math.round(Number.isFinite(cfg.slots) ? cfg.slots : 4))),
+            mascotDir: str(cfg.mascotDir).trim() ? expandHome(str(cfg.mascotDir).trim()) : '',
             ttl: {
                 workingTtl: minutes(cfg.workingMinutes, DEFAULT_TTL.workingTtl / 60),
                 doneTtl: minutes(cfg.doneMinutes, DEFAULT_TTL.doneTtl / 60),
@@ -383,6 +400,8 @@ class ClaudeSessions extends EventEmitter {
             dirExists: this.dirExists,
             lastRead: this.lastRead,
             slots,
+            mascotDir: this.settings().mascotDir,
+            mascots: [...this.mascots.keys()],
             hookPath: this.hookPath(),
             port: this.port,
             state: s.state,
@@ -394,7 +413,7 @@ class ClaudeSessions extends EventEmitter {
 
     /** Aparência atual de uma tecla `claude:*` (null para ações desconhecidas). */
     stateFor(actionId) {
-        return keyStateFor(actionId, this.summary, this.settings().slots);
+        return keyStateFor(actionId, this.summary, this.settings().slots, this.mascotUrl(this.summary.state));
     }
 
     /** Intervalo atual entre varreduras do disco. */
@@ -407,6 +426,7 @@ class ClaudeSessions extends EventEmitter {
     // ------------------------------------------------------------------
 
     start() {
+        this.scanMascots().catch(() => {});
         if (!this.stopped) return;
         this.stopped = false;
         this.installHookQuietly();
@@ -423,6 +443,8 @@ class ClaudeSessions extends EventEmitter {
 
     /** Configuração mudou (Ajustes): reinstala o hook se preciso, varre de novo e reagenda. */
     reconnect() {
+        this.mascotScannedAt = 0;
+        this.scanMascots().catch(() => {});
         this.installHookQuietly();
         return this.refreshNow().catch(() => {}).then(() => this.scheduleScan());
     }
@@ -480,6 +502,7 @@ class ClaudeSessions extends EventEmitter {
 
     async scanOnce() {
         const { dir } = this.settings();
+        if (Date.now() - this.mascotScannedAt > MASCOT_RESCAN_MS) await this.scanMascots().catch(() => {});
         let scan;
         try {
             scan = parseScan(await this.run(SCAN_SH, [dir]));
@@ -533,10 +556,61 @@ class ClaudeSessions extends EventEmitter {
 
     recompute() {
         this.summary = aggregate(this.records, this.now(), this.settings().ttl);
-        const keys = [this.summary.key, this.summary.tool_key, this.summary.since_key];
+        const keys = [this.summary.key, this.summary.tool_key, this.summary.since_key, this.mascotUrl(this.summary.state)];
         if (keys.every((k, i) => k === this.lastKeys[i])) return;
         this.lastKeys = keys;
         this.emit('change', this.snapshot());
+    }
+
+    // ------------------------------------------------------------------
+    // Mascote (GIFs por estado numa pasta do host)
+    // ------------------------------------------------------------------
+
+    /** Lista os GIFs da pasta configurada (estado -> mtime). Sem pasta: nenhum. */
+    async scanMascots() {
+        this.mascotScannedAt = Date.now();
+        const { mascotDir } = this.settings();
+        const found = new Map();
+        if (mascotDir) {
+            const out = await this.run(MASCOT_SH, [mascotDir]).catch(() => '');
+            for (const line of out.split('\n')) {
+                const m = /^(\d+) ([a-z]+)\.gif$/.exec(line.trim());
+                if (m && MASCOT_STATES.includes(m[2])) found.set(m[2], Number(m[1]) || 0);
+            }
+        }
+        const changed = JSON.stringify([...found]) !== JSON.stringify([...this.mascots]);
+        this.mascots = found;
+        if (changed) this.recompute();
+        return found;
+    }
+
+    /** Estado do mascote para o estado geral: 'limit' quando a semana passou de LIMIT_PCT e nada está rodando; sem o GIF do estado, cai em idle ou no primeiro que existir. */
+    mascotState(state) {
+        const week = Number(this.weeklyPercent());
+        const wanted = Number.isFinite(week) && week >= LIMIT_PCT && (state === 'idle' || state === 'done') ? 'limit' : state;
+        for (const candidate of [wanted, state, 'idle', ...MASCOT_STATES]) if (this.mascots.has(candidate)) return candidate;
+        return null;
+    }
+
+    /** URL do GIF do mascote para o estado geral (null sem GIF); o `v` muda com o arquivo para o deck recarregar. */
+    mascotUrl(state) {
+        const chosen = this.mascotState(state);
+        return chosen ? `/api/claude/mascot/${chosen}.gif?v=${this.mascots.get(chosen) || 0}` : null;
+    }
+
+    /** Bytes do GIF de um estado, lidos pelo host (cache por mtime); null se não existe. */
+    async readMascot(state) {
+        if (!MASCOT_STATES.includes(state) || !this.mascots.has(state)) return null;
+        const key = `${state}@${this.mascots.get(state)}`;
+        if (this.mascotCache.has(key)) return this.mascotCache.get(key);
+        const file = path.join(this.settings().mascotDir, `${state}.gif`);
+        const buffer = await new Promise((resolve) => {
+            this.execFile('sh', ['-c', 'cat -- "$1"', 'sh', file], { timeout: EXEC_TIMEOUT_MS, maxBuffer: MAX_BUFFER, encoding: 'buffer' }, (err, stdout) => resolve(err ? null : stdout));
+        });
+        if (!buffer || !buffer.length) return null;
+        this.mascotCache.clear();
+        this.mascotCache.set(key, buffer);
+        return buffer;
     }
 
     // ------------------------------------------------------------------

@@ -49,6 +49,7 @@ const DEVICE_GET_PATHS = [
     /^\/api\/apps\/[^/]+\/icon(\.json)?$/,
     /^\/api\/spotify\/art\/[^/]+$/,
     /^\/api\/media\/art\/[^/]+$/,
+    /^\/api\/claude\/mascot\/[a-z]+\.gif$/,
     /^\/media\//
 ];
 const PAIR_POST_PATHS = new Set(['/api/pair/start', '/api/pair/verify']);
@@ -111,7 +112,7 @@ class MatDeckServer {
         this.aiUsage = new AiUsage(this.config);
         this.discordRpc = new DiscordRpc(this.config);
         this.dataAssistant = new DataAssistant(this.config);
-        this.claudeSessions = new ClaudeSessions(this.config, { focus: (target) => this.platform.windows.focus(target), port: HTTP_PORT });
+        this.claudeSessions = new ClaudeSessions(this.config, { focus: (target) => this.platform.windows.focus(target), port: HTTP_PORT, weeklyPercent: () => { const w = ((this.aiUsage.state().claude || {}).windows || []).find((x) => x.id === 'weekly'); return w ? w.percent : null; } });
 
         this.profiles = new Map();
         this.profiles.set('obs', new OBSProfile(this));
@@ -492,6 +493,15 @@ class MatDeckServer {
 
         // Claude Code (terminais): estado visto pelo coletor; refresh (o hook avisa por aqui) só da própria máquina
         this.app.get('/api/claude', (req, res) => res.json(this.claudeSessions.snapshot()));
+        // Mascote do resumo (GIF por estado, lido da pasta configurada; o tablet também pode buscar)
+        this.app.get('/api/claude/mascot/:state.gif', async (req, res) => {
+            const buffer = await this.claudeSessions.readMascot(String(req.params.state || ''));
+            if (!buffer) return res.status(404).end();
+            res.set('Content-Type', 'image/gif');
+            res.set('X-Content-Type-Options', 'nosniff');
+            res.set('Cache-Control', 'public, max-age=86400, immutable');
+            res.send(buffer);
+        });
         this.app.post('/api/claude/refresh', (req, res) => {
             const ip = (req.socket.remoteAddress || '').replace('::ffff:', '');
             if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) return res.status(403).json({ error: 'Só a partir desta máquina' });

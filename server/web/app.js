@@ -751,6 +751,16 @@ function renderStatContent(el, cfg) {
     if (customText) box.classList.add('has-text-color');
     if (mode === 'media') { renderMediaContent(box, cfg); return; }
     box.innerHTML = statInnerHtml(cfg, 'key-stat');
+    // Mascote (GIF) no canto: vive fora do innerHTML para a animação não reiniciar a cada atualização
+    let mascot = el.querySelector('.key-stat-mascot');
+    if (cfg.statMascot) {
+        if (!mascot) { mascot = document.createElement('img'); mascot.className = 'key-stat-mascot'; mascot.alt = ''; mascot.draggable = false; el.appendChild(mascot); }
+        if (mascot.getAttribute('src') !== cfg.statMascot) mascot.setAttribute('src', cfg.statMascot);
+        box.classList.add('has-mascot');
+    } else {
+        if (mascot) mascot.remove();
+        box.classList.remove('has-mascot');
+    }
     // Navegador sem var() dentro de calc() (iPad 2): escala cada texto por JS a partir do tamanho que o CSS deu
     if (NO_GRID && fontScale !== 1) {
         const texts = box.querySelectorAll('.key-stat-label, .key-stat-headval, .key-stat-big, .key-stat-sub, .key-stat-rowk, .key-stat-rowv, .key-stat-meter-k, .key-stat-meter-v, .key-stat-meter-sub');

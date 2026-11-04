@@ -565,6 +565,25 @@ body.is-offline .deck-grid {
     color: var(--text);
 }
 
+/* Mascote animado (GIF pixel art) no canto inferior direito da tecla de painel; as linhas abrem espaço */
+.key-stat-mascot {
+    position: absolute;
+    right: 3%;
+    bottom: 4%;
+    height: 42%;
+    max-width: 30%;
+    width: auto;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: -webkit-optimize-contrast;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.key-stat.has-mascot .key-stat-meters {
+    padding-right: 31%;
+}
+
 /* Medidores empilhados (uso de IA): rótulo, prazo e valor por linha, com barra */
 .key-stat-meters {
     flex: 1 1 auto;

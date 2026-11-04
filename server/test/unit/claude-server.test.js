@@ -162,6 +162,18 @@ fs.mkdirSync(stateDir, { recursive: true });
     check('slots=1: resumo passa a 1 linha e avisa +1 no cabeçalho', await waitFor(() => upd(0, (k) => Array.isArray(k.statRows) && k.statRows.length === 1 && /\+1$/.test(k.statHead))), msgs.filter((m) => m.event === 'updateKey').slice(-3));
     check('GET /api/claude reflete slots=1', ((await request(port, 'GET', '/api/claude')).json || {}).slots === 1);
 
+    // --- mascote: GIF servido pelo servidor (também para o tablet) a partir da pasta configurada
+    check('sem pasta do mascote: 404', (await request(port, 'GET', '/api/claude/mascot/working.gif')).status === 404);
+    const mascotDir = path.join(tmp, 'clawd');
+    fs.mkdirSync(mascotDir, { recursive: true });
+    fs.writeFileSync(path.join(mascotDir, 'working.gif'), Buffer.from('GIF89a-teste-working', 'binary'));
+    server.config.set('claude', { mascotDir });
+    check('resumo passa a trazer statMascot', await waitFor(() => upd(0, (k) => typeof k.statMascot === 'string' && /mascot\/working\.gif/.test(k.statMascot))), msgs.filter((m) => m.event === 'updateKey').slice(-2));
+    const gif = await new Promise((resolve) => http.get({ host: '127.0.0.1', port, path: '/api/claude/mascot/working.gif' }, (res) => { const chunks = []; res.on('data', (c) => chunks.push(c)); res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], body: Buffer.concat(chunks) })); }));
+    check('GET do GIF: 200 image/gif com os bytes do arquivo', gif.status === 200 && gif.type === 'image/gif' && gif.body.toString('binary') === 'GIF89a-teste-working', gif);
+    check('estado sem GIF: 404; nome inválido: 404', (await request(port, 'GET', '/api/claude/mascot/done.gif')).status === 404 && (await request(port, 'GET', '/api/claude/mascot/..%2Fx.gif')).status === 404);
+    check('a rota do mascote é liberada para o tablet (DEVICE_GET_PATHS)', /api\\\/claude\\\/mascot/.test(read('server/src/index.js')));
+
     // --- encerra pelo caminho normal (SIGTERM → shutdown → stop dos coletores)
     ws.close();
     await fake.close();
