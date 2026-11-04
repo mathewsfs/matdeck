@@ -1683,6 +1683,21 @@ function renderStatContent(el, cfg) {
     return;
   }
   box.innerHTML = statInnerHtml(cfg, 'key-stat');
+  var mascot = el.querySelector('.key-stat-mascot');
+  if (cfg.statMascot) {
+    if (!mascot) {
+      mascot = document.createElement('img');
+      mascot.className = 'key-stat-mascot';
+      mascot.alt = '';
+      mascot.draggable = false;
+      el.appendChild(mascot);
+    }
+    if (mascot.getAttribute('src') !== cfg.statMascot) mascot.setAttribute('src', cfg.statMascot);
+    box.classList.add('has-mascot');
+  } else {
+    if (mascot) mascot.remove();
+    box.classList.remove('has-mascot');
+  }
   if (NO_GRID && fontScale !== 1) {
     var texts = box.querySelectorAll('.key-stat-label, .key-stat-headval, .key-stat-big, .key-stat-sub, .key-stat-rowk, .key-stat-rowv, .key-stat-meter-k, .key-stat-meter-v, .key-stat-meter-sub');
     for (var i = 0; i < texts.length; i++) {

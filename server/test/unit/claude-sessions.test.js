@@ -79,7 +79,8 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     const focused = [];
     const focus = async (target) => { focused.push(target); return !target.pids; };   // a chamada por PID "falha": cai para a classe
     let clock = T;
-    const cs = new ClaudeSessions(config, { focus, now: () => clock, hookSource: HOOK_SRC, hookDir, port: 8899 });
+    let weekly = 10;
+    const cs = new ClaudeSessions(config, { focus, now: () => clock, hookSource: HOOK_SRC, hookDir, port: 8899, weeklyPercent: () => weekly });
     const changes = [];
     cs.on('change', (s) => changes.push(s));
 
@@ -189,6 +190,29 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     await cs.refreshNow();
     check('(sidechain) sessão continua working', cs.snapshot().sessions.find((x) => x.id === 't').state === 'working');
     fs.unlinkSync(path.join(dir, 't.json'));
+
+    // mascote: GIFs por estado numa pasta do host (fora do repositório); escolhido pelo estado geral, 'limit' pelo consumo semanal
+    const mascotDir = path.join(tmp, 'clawd');
+    fs.mkdirSync(mascotDir);
+    const GIF = Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00;', 'binary');
+    for (const st of ['working', 'waiting', 'idle', 'limit']) fs.writeFileSync(path.join(mascotDir, `${st}.gif`), Buffer.concat([GIF, Buffer.from(st)]));
+    check('sem pasta configurada: sem mascote', cs.stateFor('claude:summary').statMascot === null && cs.snapshot().mascots.length === 0);
+    config.set('claude', { mascotDir });
+    cs.reconnect();
+    await cs.scanMascots();
+    check('scanMascots lista os GIFs da pasta (sem done.gif)', cs.snapshot().mascots.sort().join() === 'idle,limit,waiting,working', cs.snapshot().mascots);
+    await cs.refreshNow();
+    check('mascote segue o estado geral, com versão pelo mtime', new RegExp(`^/api/claude/mascot/${cs.snapshot().state}\\.gif\\?v=\\d+$`).test(cs.stateFor('claude:summary').statMascot), [cs.snapshot().state, cs.stateFor('claude:summary').statMascot]);
+    check('estado sem GIF (done) cai em idle.gif', cs.mascotUrl('done') === cs.mascotUrl('idle') && /idle\.gif/.test(cs.mascotUrl('done')));
+    weekly = 95;
+    check('semana ≥ 90% e sessão livre/pronta → limit.gif; trabalhando/esperando não', /limit\.gif/.test(cs.mascotUrl('idle')) && /limit\.gif/.test(cs.mascotUrl('done')) && /working\.gif/.test(cs.mascotUrl('working')));
+    weekly = 10;
+    const bytes = await cs.readMascot('working');
+    check('readMascot devolve os bytes do GIF pelo host', Buffer.isBuffer(bytes) && bytes.toString('binary').endsWith('working') && bytes.slice(0, 6).toString() === 'GIF89a');
+    check('readMascot de estado inexistente é null', await cs.readMascot('nada') === null && await cs.readMascot('../x') === null);
+    check('mascote entra na chave de change (recompute guarda a URL atual)', (() => { cs.recompute(); return cs.lastKeys[3] === cs.mascotUrl(cs.snapshot().state) && typeof cs.lastKeys[3] === 'string'; })(), cs.lastKeys[3]);
+    config.set('claude', { mascotDir: '' });
+    cs.reconnect();
 
     // mtime do transcript vira activity (e mantém working vivo)
     write('k.json', { session_id: 'k', state: 'working', ts: T - 3600, cwd: '/x/apk-matdeck', transcript_path: transcript });
@@ -310,6 +334,8 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     const grab = (name) => { const i = appSrc.indexOf(`function ${name}(`); if (i < 0) throw new Error(`function ${name} não encontrada no app.js`); let depth = 0, j = appSrc.indexOf('{', i); for (let k = j; k < appSrc.length; k++) { if (appSrc[k] === '{') depth++; else if (appSrc[k] === '}') { depth--; if (!depth) return appSrc.slice(i, k + 1); } } };
     const isStatKey = vm.runInNewContext(grab('isStatKey') + '; isStatKey', {});
     check('deck trata claude:summary como tecla de telemetria', isStatKey({ actionId: 'claude:summary' }) === true);
+    check('deck desenha o mascote (statMascot) numa <img class="key-stat-mascot">', /statMascot/.test(appSrc) && /key-stat-mascot/.test(appSrc) && /key-stat-mascot/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
+    check('CSS do mascote: canto da tecla, pixel art nítida, linhas abrem espaço', /\.key-stat-mascot\s*\{[^}]*image-rendering:\s*pixelated/.test(css) && /has-mascot[^{]*\.key-stat-meters\s*\{[^}]*padding-right/.test(css));
     check('deck não passa a tratar qualquer ação como telemetria', isStatKey({ actionId: 'data:talk' }) === false && isStatKey({ actionId: 'stats:cpu' }) === true);
     check('app.legacy.js também reconhece claude:', /startsWith\(["']claude:["']\)/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
 
