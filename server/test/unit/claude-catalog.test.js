@@ -13,7 +13,7 @@ check('sem claudeSlots: 4 vagas + resumo', (group({}) || { actions: [] }).action
 const slot1 = g && g.actions.find((a) => a.id === 'claude:slot:1');
 check('vaga: rótulo, ícone, indicador e dica', !!slot1 && slot1.label === 'Claude: terminal 1' && slot1.icon === 'claude' && slot1.kind === 'indicator' && /vaga 1/.test(slot1.hint) && /foca a janela/.test(slot1.hint), slot1);
 const sum = g && g.actions.find((a) => a.id === 'claude:summary');
-check('resumo é 2x1 e indicador', !!sum && sum.defaultSpan.cols === 2 && sum.defaultSpan.rows === 1 && sum.kind === 'indicator' && sum.label === 'Claude: resumo', sum);
+check('resumo é 2x2 e indicador', !!sum && sum.defaultSpan.cols === 2 && sum.defaultSpan.rows === 2 && sum.kind === 'indicator' && sum.label === 'Claude: resumo', sum);
 check('vagas em ordem, resumo por último', !!g && g.actions.map((a) => a.id).join() === 'claude:slot:1,claude:slot:2,claude:slot:3,claude:summary');
 check('claudeSlots absurdo não quebra', (group({ claudeSlots: 'x' }) || { actions: [] }).actions.length === 5);
 

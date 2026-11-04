@@ -212,7 +212,7 @@ Teclas nativas de consumo (grupo "Uso de IA"), que substituem o plugin "Claude &
 
 ### Claude Code (terminais no deck)
 
-Grupo "Claude Code" no catálogo: **Claude: terminal 1, 2, 3…** (uma tecla por vaga, 4 por padrão, até 12 em Ajustes) e **Claude: resumo** (contagem por estado). Cada tecla de terminal mostra o nome do projeto, o estado (**PRECISA**, **TRAB.**, **PRONTO** ou **LIVRE**), a atividade atual (a ferramenta que o Claude está usando) e há quanto tempo está nesse estado. Quando um terminal precisa de você (pergunta, permissão), a tecla fica vermelha e pulsa. Vagas sem sessão aparecem como VAZIA.
+Grupo "Claude Code" no catálogo: **Claude: terminal 1, 2, 3…** (uma tecla por vaga, 4 por padrão, até 12 em Ajustes) e **Claude: resumo** (2×2: a lista dos terminais, como a tela do relógio, uma linha por sessão com projeto, estado, atividade e tempo, quem precisa de você primeiro; cabem tantas linhas quantas vagas, o resto vira "+N" no cabeçalho). Para um bloco só, basta o resumo; as teclas de terminal servem para ter um toque por terminal. Cada tecla de terminal mostra o nome do projeto, o estado (**PRECISA**, **TRAB.**, **PRONTO** ou **LIVRE**), a atividade atual (a ferramenta que o Claude está usando) e há quanto tempo está nesse estado. Quando um terminal precisa de você (pergunta, permissão), a tecla fica vermelha e pulsa. Vagas sem sessão aparecem como VAZIA.
 
 Um toque na tecla leva a janela daquele terminal para a frente. Dentro do Maestri isso traz a janela do Maestri (ver "Limitações conhecidas").
 

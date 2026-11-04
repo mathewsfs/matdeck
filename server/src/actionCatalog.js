@@ -212,7 +212,7 @@ function buildActionCatalog(ctx) {
     for (let n = 1; n <= slotCount; n++) {
         claude.actions.push({ id: `claude:slot:${n}`, label: `Claude: terminal ${n}`, icon: 'claude', kind: 'indicator', hint: `Terminal do Claude Code na vaga ${n} (por prioridade: precisa de você, trabalhando, pronto). Toque foca a janela dele` });
     }
-    claude.actions.push({ id: 'claude:summary', label: 'Claude: resumo', icon: 'claude', kind: 'indicator', defaultSpan: { cols: 2, rows: 1 }, hint: 'Quantos terminais estão trabalhando, precisando de você e prontos; toque foca quem precisa de você' });
+    claude.actions.push({ id: 'claude:summary', label: 'Claude: resumo', icon: 'claude', kind: 'indicator', defaultSpan: { cols: 2, rows: 2 }, hint: 'Lista dos terminais (projeto, estado, atividade e tempo), quem precisa de você primeiro; toque foca esse terminal (padrão: 2×2)' });
     groups.push(claude);
 
     // Aplicativos instalados (.desktop do sistema e flatpaks)
