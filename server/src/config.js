@@ -47,7 +47,7 @@ const DEFAULTS = {
     },
     claude: {
         sessionsDir: '',         // vazio = ~/.local/state/matdeck/claude-sessions (onde o hook grava); MATDECK_CLAUDE_STATE_DIR tem precedência
-        slots: 4,                // teclas claude:slot:N disponíveis (1 a 12)
+        slots: 4,                // linhas do "Claude: resumo" (1 a 12)
         workingMinutes: 15,      // working sem sinal (hook ou transcript) por mais que isso = sessão morta
         doneMinutes: 10,         // done vira idle depois disso
         waitingMinutes: 120,

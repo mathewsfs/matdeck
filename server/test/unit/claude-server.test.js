@@ -58,7 +58,7 @@ fs.mkdirSync(stateDir, { recursive: true });
     check('POST /api/claude/refresh do loopback: success', refresh.status === 200 && refresh.json && refresh.json.success === true, refresh);
     const actions = (await request(port, 'GET', '/api/actions')).json || { groups: [] };
     const cg = actions.groups.find((x) => x.id === 'claude');
-    check('/api/actions traz o grupo claude com as vagas da configuração', !!cg && cg.actions.length === 5, cg && cg.actions.map((a) => a.id));
+    check('/api/actions traz o grupo claude só com o resumo', !!cg && cg.actions.length === 1 && cg.actions[0].id === 'claude:summary', cg && cg.actions.map((a) => a.id));
 
     // --- Ajustes e documentação
     const root = path.join(__dirname, '..', '..', '..');
@@ -119,9 +119,7 @@ fs.mkdirSync(stateDir, { recursive: true });
 
     // --- tela com teclas claude:* e um deck conectado
     const preset = { name: 'Claude teste', rows: 3, cols: 5, keys: [
-        { index: 0, actionId: 'claude:slot:1', title: 'Meu título' },
-        { index: 1, actionId: 'claude:slot:2', title: 'Outro' },
-        { index: 2, actionId: 'claude:summary', title: 'Resumo' }
+        { index: 0, actionId: 'claude:summary', title: 'Meu título', colSpan: 4, rowSpan: 2 }
     ] };
     check('preset salvo', (await request(port, 'POST', '/api/presets/claudetest', preset)).json.success === true);
     const msgs = [];
@@ -134,10 +132,8 @@ fs.mkdirSync(stateDir, { recursive: true });
     check('tela claudetest chega ao deck', await waitFor(() => msgs.some((m) => m.event === 'loadProfile' && m.id === 'claudetest')));
     const loaded = [...msgs].reverse().find((m) => m.event === 'loadProfile' && m.id === 'claudetest');
     const keyDef = (loaded && loaded.keys || []).find((k) => k.index === 0) || {};
-    check('preset com claude:slot:1 chega ao deck com statBig VAZIA', keyDef.statBig === 'VAZIA', keyDef);
-    check('vaga vazia mostra "—" mesmo com título do usuário (TITLE_IS_CONTENT)', keyDef.title === '—', keyDef.title);
-    const sumDef = (loaded && loaded.keys || []).find((k) => k.index === 2) || {};
-    check('resumo chega com statMode meters e as linhas de contagem', sumDef.statMode === 'meters' && Array.isArray(sumDef.statRows), sumDef);
+    check('resumo 4×2 chega ao deck com statMode meters, "nenhum terminal" e o tamanho pedido', keyDef.statMode === 'meters' && Array.isArray(keyDef.statRows) && keyDef.statRows[0].k === 'nenhum terminal' && keyDef.colSpan === 4 && keyDef.rowSpan === 2, keyDef);
+    check('título do usuário no resumo é mantido pelo servidor (o deck mostra o rótulo)', keyDef.title === 'Meu título', keyDef.title);
 
     // --- uma sessão esperando você aparece na tecla
     const now = Date.now() / 1000;
@@ -147,11 +143,9 @@ fs.mkdirSync(stateDir, { recursive: true });
     const r2 = await request(port, 'POST', '/api/claude/refresh');
     check('refresh de novo responde success', r2.status === 200 && r2.json.success === true);
     const upd = (idx, pred) => msgs.find((m) => m.event === 'updateKey' && m.profile === 'claudetest' && m.keyIndex === idx && pred(m.key));
-    check('updateKey chega com PRECISA e pulse', await waitFor(() => upd(0, (k) => k.statBig === 'PRECISA' && k.pulse === true)), msgs.filter((m) => m.event === 'updateKey').slice(-3));
-    const got = upd(0, (k) => k.statBig === 'PRECISA');
-    check('título do usuário não sobrescreve o nome do projeto (TITLE_IS_CONTENT)', !!got && got.key.title === 'apk-matdeck', got && got.key.title);
-    check('vaga 2 recebe a sessão em trabalho', await waitFor(() => upd(1, (k) => k.title === 'painel' && k.statBig === 'TRAB.')), msgs.filter((m) => m.event === 'updateKey' && m.keyIndex === 1).slice(-2));
-    check('resumo atualiza contagens', await waitFor(() => upd(2, (k) => k.pulse === true && Array.isArray(k.statRows))));
+    check('updateKey do resumo chega com a waiting na primeira linha e pulse', await waitFor(() => upd(0, (k) => k.pulse === true && Array.isArray(k.statRows) && k.statRows[0].k === 'apk-matdeck' && k.statRows[0].color === '#F87171')), msgs.filter((m) => m.event === 'updateKey').slice(-3));
+    const got = upd(0, (k) => k.pulse === true);
+    check('segunda linha é a sessão em trabalho', !!got && got.key.statRows[1].k === 'painel' && got.key.statRows[1].color === '#3B82F6', got && got.key.statRows);
 
     // --- keyDown foca a janela pelos PIDs
     const focused = [];
@@ -162,10 +156,10 @@ fs.mkdirSync(stateDir, { recursive: true });
     await sleep(100);
     check('keyUp não foca de novo', focused.length === 1, focused);
 
-    // --- mudar as vagas na configuração atualiza as teclas (sem evento do coletor)
+    // --- mudar as linhas na configuração atualiza o resumo (sem evento do coletor)
     msgs.length = 0;
     server.config.set('claude', { slots: 1 });
-    check('slots=1: vaga 2 volta a VAZIA', await waitFor(() => upd(1, (k) => k.statBig === 'VAZIA')), msgs.filter((m) => m.event === 'updateKey').slice(-3));
+    check('slots=1: resumo passa a 1 linha e avisa +1 no cabeçalho', await waitFor(() => upd(0, (k) => Array.isArray(k.statRows) && k.statRows.length === 1 && /\+1$/.test(k.statHead))), msgs.filter((m) => m.event === 'updateKey').slice(-3));
     check('GET /api/claude reflete slots=1', ((await request(port, 'GET', '/api/claude')).json || {}).slots === 1);
 
     // --- encerra pelo caminho normal (SIGTERM → shutdown → stop dos coletores)

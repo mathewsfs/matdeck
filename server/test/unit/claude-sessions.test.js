@@ -99,20 +99,17 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('snapshot: sessão traz window e activity', snap.sessions[0].window.pids[0] === 4242 && snap.sessions[0].activity === 'Pediu permissão' && snap.sessions[1].activity === 'Editando a.js');
     check('mudança do primeiro scan emitiu change', changes.length === 1, changes.length);
 
-    const st = cs.stateFor('claude:slot:1');
-    check('stateFor(claude:slot:1) é a waiting com pulse', st && st.pulse === true && st.bgColor === '#B91C1C' && st.title === 'painel', st);
-    const st2 = cs.stateFor('claude:slot:2');
-    check('stateFor(claude:slot:2) é a working sem pulse', st2 && st2.pulse === false && st2.bgColor === undefined && st2.title === 'apk-matdeck', st2);
-    check('stateFor desconhecida é null', cs.stateFor('claude:nada') === null && cs.stateFor('data:talk') === null);
+    const st = cs.stateFor('claude:summary');
+    check('stateFor(claude:summary) lista a waiting primeiro, com pulse', st && st.pulse === true && st.bgColor === '#B91C1C' && st.statRows[0].k === 'painel' && st.statRows[1].k === 'apk-matdeck', st);
+    check('stateFor desconhecida é null (inclusive as antigas claude:slot:N)', cs.stateFor('claude:nada') === null && cs.stateFor('data:talk') === null && cs.stateFor('claude:slot:1') === null);
 
-    check('keyUp não foca', await cs.handleAction('claude:slot:1', 'keyUp') === false && focused.length === 0);
-    check('handleAction slot 1 devolve true', await cs.handleAction('claude:slot:1', 'keyDown') === true);
+    check('keyUp não foca', await cs.handleAction('claude:summary', 'keyUp') === false && focused.length === 0);
+    check('handleAction summary devolve true (foca a waiting)', await cs.handleAction('claude:summary', 'keyDown') === true);
     check('foco 1: só pids, sem classHints', focused.length === 2 && focused[0].pids.join() === '4242,1000' && focused[0].classHints === undefined, focused[0]);
     check('foco 2 (PID falhou): classHints maestri', focused[1].classHints.join() === 'maestri' && focused[1].pids === undefined, focused[1]);
     logged.length = 0;
-    check('handleAction sem window não chama focus (e registra no log)', await cs.handleAction('claude:slot:2', 'keyDown') === false && focused.length === 2 && /sem janela/.test(logged[0] || ''), logged);
-    check('handleAction vaga vazia / fora da faixa', await cs.handleAction('claude:slot:3', 'keyDown') === false && await cs.handleAction('claude:slot:9', 'keyDown') === false && focused.length === 2);
-    check('summary foca a primeira waiting', await cs.handleAction('claude:summary', 'keyDown') === true && focused.length === 4 && focused[2].pids[0] === 4242);
+    check('handleAction de ação desconhecida não chama focus', await cs.handleAction('claude:slot:1', 'keyDown') === false && focused.length === 2);
+    check('summary foca a primeira waiting de novo', await cs.handleAction('claude:summary', 'keyDown') === true && focused.length === 4 && focused[2].pids[0] === 4242);
 
     // summary sem waiting foca a primeira working
     write('w.json', { session_id: 'w', state: 'done', ts: T - 3, cwd: '/x/painel', window: { pids: [4242], term_program: 'Maestri' } });
@@ -145,7 +142,7 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('CSS: .key-stat-label trunca com reticências (nowrap, overflow, text-overflow, min-width:0)', /text-overflow:\s*ellipsis/.test(labelRule) && /white-space:\s*nowrap/.test(labelRule) && /overflow:\s*hidden/.test(labelRule) && /min-width:\s*0/.test(labelRule), labelRule);
     check('CSS: .key-stat-headval não encolhe', /flex-shrink:\s*0/.test(rule('.key-stat-headval')), rule('.key-stat-headval'));
 
-    // primeiro minuto: o "há quanto tempo" (12s) muda a cada segundo; depois, só a cada minuto
+    // "há quanto tempo" como no relógio: '<1m' no primeiro minuto (sem change a cada segundo), depois muda por minuto
     const dir2 = path.join(tmp, 'sessions-since');
     fs.mkdirSync(dir2);
     const config2 = new ConfigStore(path.join(tmp, 'config-since.json'));
@@ -158,12 +155,40 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     await cs2.refreshNow();
     changes2.length = 0;
     const emittedAt = (seconds) => { const before = changes2.length; clock2 = T + seconds; cs2.tick(); return changes2.length > before; };
-    check('since < 60 s: change a cada segundo', [1, 2, 3, 30, 31, 58, 59].every((sec) => emittedAt(sec)), changes2);
-    check('since aos 60 s: change (vira 1m)', emittedAt(60));
+    check('since < 60 s: sem change a cada segundo (mostra <1m)', [1, 2, 30, 59].every((sec) => !emittedAt(sec)) && cs2.stateFor('claude:summary').statRows[0].v === '<1m', changes2);
+    check('since aos 60 s: change (vira 1m)', emittedAt(60) && cs2.stateFor('claude:summary').statRows[0].v === '1m');
     check('since entre 61 s e 119 s: sem change', [61, 62, 90, 119].every((sec) => !emittedAt(sec)), changes2);
     check('since aos 120 s: change (vira 2m)', emittedAt(120));
-    check('since em 121 s: sem change', !emittedAt(121));
     cs2.stop();
+
+    // transcript: nome da sessão (custom-title/ai-title) e interrupção (Esc / permissão negada), lidos de forma incremental
+    const tlog = path.join(tmp, 'titled.jsonl');
+    const iso = (sec) => new Date(sec * 1000).toISOString();
+    fs.writeFileSync(tlog, [
+        JSON.stringify({ type: 'ai-title', aiTitle: 'Título automático', sessionId: 't' }),
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'oi' }, timestamp: iso(T - 100) })
+    ].join('\n') + '\n');
+    write('t.json', { session_id: 't', state: 'waiting', ts: T - 10, cwd: '/x/projeto-t', notification_type: 'permission_prompt', transcript_path: tlog });
+    clock = T;
+    await cs.refreshNow();
+    let tsess = cs.snapshot().sessions.find((x) => x.id === 't');
+    check('nome da sessão vem do ai-title do transcript', tsess && tsess.name === 'Título automático' && tsess.state === 'waiting', tsess);
+    fs.appendFileSync(tlog, JSON.stringify({ type: 'custom-title', customTitle: 'MATdeck', sessionId: 't' }) + '\n');
+    await cs.refreshNow();
+    tsess = cs.snapshot().sessions.find((x) => x.id === 't');
+    check('custom-title (/rename) vence o ai-title e é lido no trecho novo', tsess && tsess.name === 'MATdeck', tsess && tsess.name);
+    fs.appendFileSync(tlog, JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] }, timestamp: iso(T - 5) }) + '\n');
+    await cs.refreshNow();
+    tsess = cs.snapshot().sessions.find((x) => x.id === 't');
+    check('interrupção depois do último evento do hook: deixa de ser waiting (vira livre)', tsess && tsess.state === 'idle' && tsess.activity === 'Livre', tsess);
+    write('t.json', { session_id: 't', state: 'working', ts: T + 1, cwd: '/x/projeto-t', transcript_path: tlog });
+    await cs.refreshNow();
+    tsess = cs.snapshot().sessions.find((x) => x.id === 't');
+    check('evento novo do hook depois da interrupção volta a valer', tsess && tsess.state === 'working' && tsess.name === 'MATdeck', tsess);
+    check('interrupção numa sidechain é ignorada', (() => { fs.appendFileSync(tlog, JSON.stringify({ type: 'user', isSidechain: true, message: { content: '[Request interrupted by user' }, timestamp: iso(T + 5) }) + '\n'); return true; })());
+    await cs.refreshNow();
+    check('(sidechain) sessão continua working', cs.snapshot().sessions.find((x) => x.id === 't').state === 'working');
+    fs.unlinkSync(path.join(dir, 't.json'));
 
     // mtime do transcript vira activity (e mantém working vivo)
     write('k.json', { session_id: 'k', state: 'working', ts: T - 3600, cwd: '/x/apk-matdeck', transcript_path: transcript });
@@ -197,7 +222,7 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     config.set('claude', { slots: 1 });
     cs.reconnect();
     await cs.refreshNow();
-    check('slots da config limitam as vagas (slots: 1 → slot 2 vazio)', cs.snapshot().slots === 1 && cs.stateFor('claude:slot:2').statBig === 'VAZIA' && await cs.handleAction('claude:slot:2', 'keyDown') === false);
+    check('slots da config limitam as linhas do resumo (slots: 1 → 1 linha e +N no cabeçalho)', cs.snapshot().slots === 1 && cs.stateFor('claude:summary').statRows.length === 1 && /\+\d+$/.test(cs.stateFor('claude:summary').statHead), cs.stateFor('claude:summary').statHead);
     config.set('claude', { slots: 99 });
     check('slots limitado a 12', cs.settings().slots === 12);
     config.set('claude', { slots: 0 });
@@ -255,49 +280,36 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
         ...(o || [])
     ], T, cfg);
     const vs = visual();
-    const kw = keyStateFor('claude:slot:2', vs, 4);
-    check('slot com working: statBig TRAB., statSub atividade, sem pulse', kw.statBig === 'TRAB.' && kw.statSub === vs.sessions[1].activity && kw.pulse === false && kw.statColor === '#3B82F6'
-        && kw.statMode === 'bar' && kw.statHead === '12s' && kw.title === vs.sessions[1].name && kw.active === true && kw.bgColor === undefined && kw.badge === null && kw.statPercent === null, kw);
-    const kp = keyStateFor('claude:slot:1', vs, 4);
-    check('slot waiting: PRECISA, pulse, fundo #B91C1C, borda e cor #F87171', kp.statBig === 'PRECISA' && kp.pulse === true && kp.bgColor === '#B91C1C' && kp.borderColor === '#F87171'
-        && kp.statColor === '#F87171' && kp.active === true && kp.statHead === '2m', kp);
-    check('o fundo de waiting não é o #DC2626 (mutado no deck)', String(kp.bgColor).toUpperCase() !== '#DC2626');
-    const kd = keyStateFor('claude:slot:1', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4);
-    check('slot done: PRONTO verde, sem pulse nem active', kd.statBig === 'PRONTO' && kd.statColor === '#16A34A' && kd.pulse === false && kd.active === false, kd);
     const longAct = aggregate([rec({ cwd: '/x/longo', tool: 'Bash', detail: 'x'.repeat(200) })], T, cfg);
-    const kl = keyStateFor('claude:slot:1', longAct, 4);
-    check('statSub cortado em 40 com reticências', kl.statSub.length <= 40 && kl.statSub.endsWith('…'), kl.statSub);
-    const ke = keyStateFor('claude:slot:4', vs, 4);
-    check('slot vazio: VAZIA cinza', ke.statBig === 'VAZIA' && ke.statColor === '#6B7280' && ke.title === '—' && ke.statSub === '' && ke.statHead === ''
-        && ke.pulse === false && ke.active === false && ke.bgColor === undefined && ke.borderColor === undefined && ke.statPercent === null, ke);
-    check('slot além das vagas é vazio (slots 2, slot 3)', keyStateFor('claude:slot:3', vs, 2).statBig === 'VAZIA' && keyStateFor('claude:slot:0', vs, 4).statBig === 'VAZIA');
-    check('ação desconhecida é null', keyStateFor('data:talk', vs, 4) === null && keyStateFor('claude:nada', vs, 4) === null);
+    check('o fundo de waiting não é o #DC2626 (mutado no deck)', String(keyStateFor('claude:summary', vs, 4).bgColor).toUpperCase() !== '#DC2626');
+    check('ação desconhecida é null (inclusive claude:slot:N, removida)', keyStateFor('data:talk', vs, 4) === null && keyStateFor('claude:nada', vs, 4) === null && keyStateFor('claude:slot:1', vs, 4) === null);
     // resumo = lista dos terminais (uma linha por sessão, na ordem de prioridade), limitada às vagas
     const sm = keyStateFor('claude:summary', vs, 2);
     check('resumo lista os terminais por prioridade (waiting primeiro) e corta nas vagas (slots 2, 3 sessões)', sm.statRows.length === 2
-        && sm.statRows[0].v === 'PRECISA' && sm.statRows[0].color === '#F87171' && sm.statRows[1].v === 'TRAB.' && sm.statRows[1].color === '#3B82F6', sm.statRows);
-    check('linha do resumo: k = nome do projeto, sub = atividade · tempo', sm.statRows[0].k === vs.sessions[0].name && sm.statRows[0].sub === `${vs.sessions[0].activity} · ${sinceText(vs.sessions[0].since)}`, sm.statRows[0]);
-    check('resumo com mais sessões que vagas avisa no cabeçalho (+1)', sm.statHead === 'PRECISA DE VOCÊ · +1', sm.statHead);
+        && sm.statRows[0].color === '#F87171' && sm.statRows[1].color === '#3B82F6', sm.statRows);
+    check('linha como no relógio: k = nome, v = tempo, sub = atividade, cor = estado', sm.statRows[0].k === vs.sessions[0].name && sm.statRows[0].v === sinceText(vs.sessions[0].since)
+        && sm.statRows[0].sub === vs.sessions[0].activity && sm.statRows[1].sub === vs.sessions[1].activity, sm.statRows[0]);
+    check('cabeçalho = contagens por estado e +N quando não cabe', sm.statHead === '1 precisa · 2 trab. · +1', sm.statHead);
     check('resumo com waiting pulsa e vem vermelho', sm.statMode === 'meters' && sm.pulse === true && sm.bgColor === '#B91C1C'
         && sm.borderColor === '#F87171' && sm.active === true && sm.badge === null && sm.statColor === '#F87171', sm);
     const sm4 = keyStateFor('claude:summary', vs, 4);
-    check('resumo com vagas sobrando lista todas sem +N', sm4.statRows.length === 3 && sm4.statHead === 'PRECISA DE VOCÊ', sm4.statHead);
+    check('resumo com vagas sobrando lista todas sem +N', sm4.statRows.length === 3 && sm4.statHead === '1 precisa · 2 trab.', sm4.statHead);
     check('barra da linha: cheia para waiting e working', sm4.statRows[0].pct === 100 && sm4.statRows[1].pct === 100, sm4.statRows.map((r) => r.pct));
     const sw = keyStateFor('claude:summary', aggregate([rec({})], T, cfg), 4);
-    check('resumo só trabalhando: TRABALHANDO, sem pulse, ativo', sw.statHead === 'TRABALHANDO' && sw.pulse === false && sw.bgColor === undefined && sw.active === true && sw.statColor === '#3B82F6', sw);
+    check('resumo só trabalhando: "1 trab.", sem pulse, ativo', sw.statHead === '1 trab.' && sw.pulse === false && sw.bgColor === undefined && sw.active === true && sw.statColor === '#3B82F6', sw);
     const si = keyStateFor('claude:summary', aggregate([], T, cfg), 4);
-    check('resumo vazio: LIVRE, uma linha cinza "nenhum terminal", inativo', si.statHead === 'LIVRE' && si.statColor === '#6B7280' && si.active === false
+    check('resumo vazio: "livre", uma linha cinza "nenhum terminal", inativo', si.statHead === 'livre' && si.statColor === '#6B7280' && si.active === false
         && si.statRows.length === 1 && si.statRows[0].k === 'nenhum terminal' && si.statRows[0].pct === 0 && si.statRows[0].color === '#6B7280', si);
     const sd = keyStateFor('claude:summary', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4);
-    check('resumo pronto: PRONTO, linha verde com barra parcial', sd.statHead === 'PRONTO' && sd.statRows[0].v === 'PRONTO' && sd.statRows[0].color === '#16A34A' && sd.statRows[0].pct === 60, sd.statRows);
+    check('resumo pronto: "1 pronto", linha verde com barra parcial e atividade "Pronto"', sd.statHead === '1 pronto' && sd.statRows[0].sub === 'Pronto' && sd.statRows[0].color === '#16A34A' && sd.statRows[0].pct === 60, sd.statRows);
     const sub = keyStateFor('claude:summary', longAct, 4).statRows[0].sub;
-    check('sub da linha cortado em 40', sub.length <= 40 && sub.endsWith('…'), sub);
-    check('sinceText', sinceText(12) === '12s' && sinceText(125) === '2m' && sinceText(3900) === '1h05' && sinceText(0) === '0s' && sinceText(59.9) === '59s' && sinceText(7200) === '2h00', [sinceText(12), sinceText(125), sinceText(3900)]);
+    check('sub da linha cortado em 72 (tecla larga mostra mais; o CSS corta o resto)', sub.length <= 72 && sub.length > 40 && sub.endsWith('…'), sub);
+    check('sinceText (como o relógio)', sinceText(12) === '<1m' && sinceText(125) === '2m' && sinceText(3900) === '1h05' && sinceText(0) === '<1m' && sinceText(59.9) === '<1m' && sinceText(7200) === '2h00', [sinceText(12), sinceText(125), sinceText(3900)]);
     // deck: o isStatKey de verdade, extraído do app.js
     const appSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.js'), 'utf8');
     const grab = (name) => { const i = appSrc.indexOf(`function ${name}(`); if (i < 0) throw new Error(`function ${name} não encontrada no app.js`); let depth = 0, j = appSrc.indexOf('{', i); for (let k = j; k < appSrc.length; k++) { if (appSrc[k] === '{') depth++; else if (appSrc[k] === '}') { depth--; if (!depth) return appSrc.slice(i, k + 1); } } };
     const isStatKey = vm.runInNewContext(grab('isStatKey') + '; isStatKey', {});
-    check('deck trata claude:slot:1 e claude:summary como tecla de telemetria', isStatKey({ actionId: 'claude:slot:1' }) === true && isStatKey({ actionId: 'claude:summary' }) === true);
+    check('deck trata claude:summary como tecla de telemetria', isStatKey({ actionId: 'claude:summary' }) === true);
     check('deck não passa a tratar qualquer ação como telemetria', isStatKey({ actionId: 'data:talk' }) === false && isStatKey({ actionId: 'stats:cpu' }) === true);
     check('app.legacy.js também reconhece claude:', /startsWith\(["']claude:["']\)/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
 
