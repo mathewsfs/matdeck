@@ -605,9 +605,10 @@ body.is-offline .deck-grid {
 
 .key-stat-meter-img {
     flex: 0 0 auto;
-    height: 3.4em;
+    height: 9vmin;
     height: clamp(2.4em, 22cqmin, 7em);
     width: auto;
+    max-width: 12vmin;
     max-width: 4.5em;
     object-fit: contain;
     image-rendering: pixelated;
@@ -635,7 +636,11 @@ body.is-offline .deck-grid {
 }
 
 .key-stat-meter-k {
+    flex: 0 1 auto;
+    min-width: 0;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .key-stat-meter-sub {
@@ -652,6 +657,7 @@ body.is-offline .deck-grid {
 }
 
 .key-stat-meter-v {
+    flex: 0 0 auto;
     white-space: nowrap;
 }
 
