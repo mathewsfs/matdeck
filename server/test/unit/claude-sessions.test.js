@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const vm = require('vm');
 const ClaudeSessions = require('../../src/claudeSessions');
 const ConfigStore = require('../../src/config');
 const { aggregate, effectiveState, sessionLabel, activityText, parseScan, DEFAULT_TTL } = ClaudeSessions;
@@ -169,7 +170,7 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     config.set('claude', { slots: 1 });
     cs.reconnect();
     await cs.refreshNow();
-    check('slots da config limitam as vagas (slots: 1 → slot 2 vazio)', cs.snapshot().slots === 1 && cs.stateFor('claude:slot:2').title === '' && await cs.handleAction('claude:slot:2', 'keyDown') === false);
+    check('slots da config limitam as vagas (slots: 1 → slot 2 vazio)', cs.snapshot().slots === 1 && cs.stateFor('claude:slot:2').statBig === 'VAZIA' && await cs.handleAction('claude:slot:2', 'keyDown') === false);
     config.set('claude', { slots: 99 });
     check('slots limitado a 12', cs.settings().slots === 12);
     config.set('claude', { slots: 0 });
@@ -217,6 +218,53 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     console.warn = origWarn;
     check('start instala o hook sem lançar: erro de origem registrado uma vez', warns.length === 1, warns);
     check('start varre em ciclo e stop encerra', life.scanTimer === null && life.tickTimer === null && scans >= 2, scans);
+
+    // --- aparência das teclas (keyStateFor) e reconhecimento no deck ---------------------------------
+    const { keyStateFor, sinceText } = ClaudeSessions;
+    const visual = (o) => aggregate([
+        rec({ session_id: 'a', state: 'waiting', cwd: '/x/painel', ts: T - 125 }),
+        rec({ session_id: 'b', state: 'working', cwd: '/x/apk-matdeck', tool: 'Edit', ts: T - 12 }),
+        rec({ session_id: 'c', state: 'working', cwd: '/x/outro', ts: T - 60 }),
+        ...(o || [])
+    ], T, cfg);
+    const vs = visual();
+    const kw = keyStateFor('claude:slot:2', vs, 4);
+    check('slot com working: statBig TRAB., statSub atividade, sem pulse', kw.statBig === 'TRAB.' && kw.statSub === vs.sessions[1].activity && kw.pulse === false && kw.statColor === '#3B82F6'
+        && kw.statMode === 'bar' && kw.statHead === '12s' && kw.title === vs.sessions[1].name && kw.active === true && kw.bgColor === undefined && kw.badge === null && kw.statPercent === null, kw);
+    const kp = keyStateFor('claude:slot:1', vs, 4);
+    check('slot waiting: PRECISA, pulse, fundo #B91C1C, borda e cor #F87171', kp.statBig === 'PRECISA' && kp.pulse === true && kp.bgColor === '#B91C1C' && kp.borderColor === '#F87171'
+        && kp.statColor === '#F87171' && kp.active === true && kp.statHead === '2m', kp);
+    check('o fundo de waiting não é o #DC2626 (mutado no deck)', String(kp.bgColor).toUpperCase() !== '#DC2626');
+    const kd = keyStateFor('claude:slot:1', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4);
+    check('slot done: PRONTO verde, sem pulse nem active', kd.statBig === 'PRONTO' && kd.statColor === '#16A34A' && kd.pulse === false && kd.active === false, kd);
+    const longAct = aggregate([rec({ cwd: '/x/longo', tool: 'Bash', detail: 'x'.repeat(200) })], T, cfg);
+    const kl = keyStateFor('claude:slot:1', longAct, 4);
+    check('statSub cortado em 40 com reticências', kl.statSub.length <= 40 && kl.statSub.endsWith('…'), kl.statSub);
+    const ke = keyStateFor('claude:slot:4', vs, 4);
+    check('slot vazio: VAZIA cinza', ke.statBig === 'VAZIA' && ke.statColor === '#6B7280' && ke.title === '—' && ke.statSub === '' && ke.statHead === ''
+        && ke.pulse === false && ke.active === false && ke.bgColor === undefined && ke.borderColor === undefined && ke.statPercent === null, ke);
+    check('slot além das vagas é vazio (slots 2, slot 3)', keyStateFor('claude:slot:3', vs, 2).statBig === 'VAZIA' && keyStateFor('claude:slot:0', vs, 4).statBig === 'VAZIA');
+    check('ação desconhecida é null', keyStateFor('data:talk', vs, 4) === null && keyStateFor('claude:nada', vs, 4) === null);
+    const sm = keyStateFor('claude:summary', vs, 1);
+    check('resumo conta além das vagas (slots 1, 3 sessões: 2 trabalhando)', sm.statRows[0].k === 'Trabalhando' && sm.statRows[0].v === '2'
+        && sm.statRows[1].k === 'Precisando' && sm.statRows[1].v === '1' && sm.statRows[2].k === 'Prontos' && sm.statRows[2].v === '0', sm.statRows);
+    check('resumo com waiting pulsa e vem vermelho', sm.statMode === 'meters' && sm.statHead === 'PRECISA DE VOCÊ' && sm.pulse === true && sm.bgColor === '#B91C1C'
+        && sm.borderColor === '#F87171' && sm.active === true && sm.badge === null && sm.statColor === '#F87171', sm);
+    check('resumo: pct proporcional ao total e cores das linhas', Math.abs(sm.statRows[0].pct - 200 / 3) < 1e-9 && Math.abs(sm.statRows[1].pct - 100 / 3) < 1e-9 && sm.statRows[2].pct === 0
+        && sm.statRows[0].color === '#3B82F6' && sm.statRows[1].color === '#F87171' && sm.statRows[2].color === '#16A34A', sm.statRows);
+    const sw = keyStateFor('claude:summary', aggregate([rec({})], T, cfg), 4);
+    check('resumo só trabalhando: TRABALHANDO, sem pulse, ativo', sw.statHead === 'TRABALHANDO' && sw.pulse === false && sw.bgColor === undefined && sw.active === true && sw.statColor === '#3B82F6', sw);
+    const si = keyStateFor('claude:summary', aggregate([], T, cfg), 4);
+    check('resumo vazio: LIVRE, pct 0, inativo', si.statHead === 'LIVRE' && si.statColor === '#6B7280' && si.active === false && si.statRows.every((r) => r.pct === 0 && r.v === '0'), si);
+    check('resumo pronto: PRONTO', keyStateFor('claude:summary', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4).statHead === 'PRONTO');
+    check('sinceText', sinceText(12) === '12s' && sinceText(125) === '2m' && sinceText(3900) === '1h05' && sinceText(0) === '0s' && sinceText(59.9) === '59s' && sinceText(7200) === '2h00', [sinceText(12), sinceText(125), sinceText(3900)]);
+    // deck: o isStatKey de verdade, extraído do app.js
+    const appSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.js'), 'utf8');
+    const grab = (name) => { const i = appSrc.indexOf(`function ${name}(`); if (i < 0) throw new Error(`function ${name} não encontrada no app.js`); let depth = 0, j = appSrc.indexOf('{', i); for (let k = j; k < appSrc.length; k++) { if (appSrc[k] === '{') depth++; else if (appSrc[k] === '}') { depth--; if (!depth) return appSrc.slice(i, k + 1); } } };
+    const isStatKey = vm.runInNewContext(grab('isStatKey') + '; isStatKey', {});
+    check('deck trata claude:slot:1 e claude:summary como tecla de telemetria', isStatKey({ actionId: 'claude:slot:1' }) === true && isStatKey({ actionId: 'claude:summary' }) === true);
+    check('deck não passa a tratar qualquer ação como telemetria', isStatKey({ actionId: 'data:talk' }) === false && isStatKey({ actionId: 'stats:cpu' }) === true);
+    check('app.legacy.js também reconhece claude:', /startsWith\(["']claude:["']\)/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
 
     fs.rmSync(tmp, { recursive: true, force: true });
     out(fails ? `\n${fails} check(s) falharam` : '\nTodos os checks passaram');

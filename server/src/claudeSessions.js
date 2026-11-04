@@ -205,15 +205,63 @@ function classHintFor(termProgram) {
 // Aparência das teclas
 // ----------------------------------------------------------------------
 
+const STATE_LABEL = { waiting: 'PRECISA', working: 'TRAB.', done: 'PRONTO', idle: 'LIVRE' };
+const STATE_COLOR = { waiting: '#F87171', working: '#3B82F6', done: '#16A34A', idle: '#6B7280' };
+const SUMMARY_HEAD = { waiting: 'PRECISA DE VOCÊ', working: 'TRABALHANDO', done: 'PRONTO', idle: 'LIVRE' };
+const WAITING_BORDER = '#F87171';
+const SUB_MAX = 40;
+
+/** Tempo decorrido curto: '12s', '2m', '1h05'. */
+function sinceText(seconds) {
+    const s = Math.max(0, Math.floor(Number(seconds) || 0));
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm';
+    return Math.floor(s / 3600) + 'h' + String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+}
+
+const clip = (text, max) => (text.length > max ? text.slice(0, max - 1) + '…' : text);
+
 /** Aparência de uma tecla `claude:*` (campos do updateKey; null para ações desconhecidas). */
 function keyStateFor(actionId, summary, slots = 4) {
-    const slot = /^claude:slot:(\d+)$/.exec(String(actionId));
+    const id = String(actionId);
+    if (id === 'claude:summary') {
+        const { working = 0, waiting = 0, done = 0, total = 0 } = summary || {};
+        const state = (summary && summary.state) || 'idle';
+        const row = (k, v, color) => ({ k, v: String(v), pct: total ? 100 * v / total : 0, color });
+        return {
+            statMode: 'meters',
+            statHead: SUMMARY_HEAD[state] || SUMMARY_HEAD.idle,
+            statColor: STATE_COLOR[state] || STATE_COLOR.idle,
+            statRows: [row('Trabalhando', working, STATE_COLOR.working), row('Precisando', waiting, STATE_COLOR.waiting), row('Prontos', done, STATE_COLOR.done)],
+            pulse: waiting > 0,
+            bgColor: waiting > 0 ? WAITING_BG : undefined,
+            borderColor: waiting > 0 ? WAITING_BORDER : undefined,
+            active: working + waiting > 0,
+            badge: null
+        };
+    }
+    const slot = /^claude:slot:(\d+)$/.exec(id);
     if (!slot) return null;
     const n = Number(slot[1]);
     const session = n >= 1 && n <= slots && summary ? summary.sessions[n - 1] : null;
-    if (!session) return { title: '', pulse: false, bgColor: undefined };
+    if (!session) {
+        return { title: '—', statMode: 'bar', statHead: '', statBig: 'VAZIA', statSub: '', statColor: STATE_COLOR.idle, badge: null, bgColor: undefined, borderColor: undefined, pulse: false, active: false, statPercent: null };
+    }
     const waiting = session.state === 'waiting';
-    return { title: session.name, pulse: waiting, bgColor: waiting ? WAITING_BG : undefined };
+    return {
+        title: session.name,
+        statMode: 'bar',
+        statHead: sinceText(session.since),
+        statBig: STATE_LABEL[session.state] || STATE_LABEL.idle,
+        statSub: clip(str(session.activity), SUB_MAX),
+        statColor: STATE_COLOR[session.state] || STATE_COLOR.idle,
+        badge: null,
+        bgColor: waiting ? WAITING_BG : undefined,
+        borderColor: waiting ? WAITING_BORDER : undefined,
+        pulse: waiting,
+        active: session.state === 'working' || waiting,
+        statPercent: null
+    };
 }
 
 class ClaudeSessions extends EventEmitter {
@@ -486,6 +534,7 @@ ClaudeSessions.aggregate = aggregate;
 ClaudeSessions.parseScan = parseScan;
 ClaudeSessions.classHintFor = classHintFor;
 ClaudeSessions.keyStateFor = keyStateFor;
+ClaudeSessions.sinceText = sinceText;
 ClaudeSessions.DEFAULT_DIR = DEFAULT_DIR;
 ClaudeSessions.DEFAULT_TTL = DEFAULT_TTL;
 
