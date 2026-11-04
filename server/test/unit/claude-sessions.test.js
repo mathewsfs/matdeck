@@ -272,18 +272,26 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
         && ke.pulse === false && ke.active === false && ke.bgColor === undefined && ke.borderColor === undefined && ke.statPercent === null, ke);
     check('slot além das vagas é vazio (slots 2, slot 3)', keyStateFor('claude:slot:3', vs, 2).statBig === 'VAZIA' && keyStateFor('claude:slot:0', vs, 4).statBig === 'VAZIA');
     check('ação desconhecida é null', keyStateFor('data:talk', vs, 4) === null && keyStateFor('claude:nada', vs, 4) === null);
-    const sm = keyStateFor('claude:summary', vs, 1);
-    check('resumo conta além das vagas (slots 1, 3 sessões: 2 trabalhando)', sm.statRows[0].k === 'Trabalhando' && sm.statRows[0].v === '2'
-        && sm.statRows[1].k === 'Precisando' && sm.statRows[1].v === '1' && sm.statRows[2].k === 'Prontos' && sm.statRows[2].v === '0', sm.statRows);
-    check('resumo com waiting pulsa e vem vermelho', sm.statMode === 'meters' && sm.statHead === 'PRECISA DE VOCÊ' && sm.pulse === true && sm.bgColor === '#B91C1C'
+    // resumo = lista dos terminais (uma linha por sessão, na ordem de prioridade), limitada às vagas
+    const sm = keyStateFor('claude:summary', vs, 2);
+    check('resumo lista os terminais por prioridade (waiting primeiro) e corta nas vagas (slots 2, 3 sessões)', sm.statRows.length === 2
+        && sm.statRows[0].v === 'PRECISA' && sm.statRows[0].color === '#F87171' && sm.statRows[1].v === 'TRAB.' && sm.statRows[1].color === '#3B82F6', sm.statRows);
+    check('linha do resumo: k = nome do projeto, sub = atividade · tempo', sm.statRows[0].k === vs.sessions[0].name && sm.statRows[0].sub === `${vs.sessions[0].activity} · ${sinceText(vs.sessions[0].since)}`, sm.statRows[0]);
+    check('resumo com mais sessões que vagas avisa no cabeçalho (+1)', sm.statHead === 'PRECISA DE VOCÊ · +1', sm.statHead);
+    check('resumo com waiting pulsa e vem vermelho', sm.statMode === 'meters' && sm.pulse === true && sm.bgColor === '#B91C1C'
         && sm.borderColor === '#F87171' && sm.active === true && sm.badge === null && sm.statColor === '#F87171', sm);
-    check('resumo: pct proporcional ao total e cores das linhas', Math.abs(sm.statRows[0].pct - 200 / 3) < 1e-9 && Math.abs(sm.statRows[1].pct - 100 / 3) < 1e-9 && sm.statRows[2].pct === 0
-        && sm.statRows[0].color === '#3B82F6' && sm.statRows[1].color === '#F87171' && sm.statRows[2].color === '#16A34A', sm.statRows);
+    const sm4 = keyStateFor('claude:summary', vs, 4);
+    check('resumo com vagas sobrando lista todas sem +N', sm4.statRows.length === 3 && sm4.statHead === 'PRECISA DE VOCÊ', sm4.statHead);
+    check('barra da linha: cheia para waiting e working', sm4.statRows[0].pct === 100 && sm4.statRows[1].pct === 100, sm4.statRows.map((r) => r.pct));
     const sw = keyStateFor('claude:summary', aggregate([rec({})], T, cfg), 4);
     check('resumo só trabalhando: TRABALHANDO, sem pulse, ativo', sw.statHead === 'TRABALHANDO' && sw.pulse === false && sw.bgColor === undefined && sw.active === true && sw.statColor === '#3B82F6', sw);
     const si = keyStateFor('claude:summary', aggregate([], T, cfg), 4);
-    check('resumo vazio: LIVRE, pct 0, inativo', si.statHead === 'LIVRE' && si.statColor === '#6B7280' && si.active === false && si.statRows.every((r) => r.pct === 0 && r.v === '0'), si);
-    check('resumo pronto: PRONTO', keyStateFor('claude:summary', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4).statHead === 'PRONTO');
+    check('resumo vazio: LIVRE, uma linha cinza "nenhum terminal", inativo', si.statHead === 'LIVRE' && si.statColor === '#6B7280' && si.active === false
+        && si.statRows.length === 1 && si.statRows[0].k === 'nenhum terminal' && si.statRows[0].pct === 0 && si.statRows[0].color === '#6B7280', si);
+    const sd = keyStateFor('claude:summary', aggregate([rec({ state: 'done', ts: T - 5 })], T, cfg), 4);
+    check('resumo pronto: PRONTO, linha verde com barra parcial', sd.statHead === 'PRONTO' && sd.statRows[0].v === 'PRONTO' && sd.statRows[0].color === '#16A34A' && sd.statRows[0].pct === 60, sd.statRows);
+    const sub = keyStateFor('claude:summary', longAct, 4).statRows[0].sub;
+    check('sub da linha cortado em 40', sub.length <= 40 && sub.endsWith('…'), sub);
     check('sinceText', sinceText(12) === '12s' && sinceText(125) === '2m' && sinceText(3900) === '1h05' && sinceText(0) === '0s' && sinceText(59.9) === '59s' && sinceText(7200) === '2h00', [sinceText(12), sinceText(125), sinceText(3900)]);
     // deck: o isStatKey de verdade, extraído do app.js
     const appSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.js'), 'utf8');

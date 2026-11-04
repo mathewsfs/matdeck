@@ -216,6 +216,7 @@ function classHintFor(termProgram) {
 const STATE_LABEL = { waiting: 'PRECISA', working: 'TRAB.', done: 'PRONTO', idle: 'LIVRE' };
 const STATE_COLOR = { waiting: '#F87171', working: '#3B82F6', done: '#16A34A', idle: '#6B7280' };
 const SUMMARY_HEAD = { waiting: 'PRECISA DE VOCÊ', working: 'TRABALHANDO', done: 'PRONTO', idle: 'LIVRE' };
+const SUMMARY_ROW_PCT = { waiting: 100, working: 100, done: 60, idle: 20 };   // barra da linha do resumo por estado
 const WAITING_BORDER = '#F87171';
 const SUB_MAX = 40;
 
@@ -233,14 +234,27 @@ const clip = (text, max) => (text.length > max ? text.slice(0, max - 1) + '…' 
 function keyStateFor(actionId, summary, slots = 4) {
     const id = String(actionId);
     if (id === 'claude:summary') {
-        const { working = 0, waiting = 0, done = 0, total = 0 } = summary || {};
+        // Lista dos terminais (como a tela do relógio): uma linha por sessão na ordem de prioridade, limitada às vagas
+        const { working = 0, waiting = 0 } = summary || {};
         const state = (summary && summary.state) || 'idle';
-        const row = (k, v, color) => ({ k, v: String(v), pct: total ? 100 * v / total : 0, color });
+        const sessions = (summary && summary.sessions) || [];
+        const max = Math.max(1, Number(slots) || 1);
+        const shown = sessions.slice(0, max);
+        const rows = shown.length
+            ? shown.map((s) => ({
+                k: s.name,
+                v: STATE_LABEL[s.state] || STATE_LABEL.idle,
+                sub: clip(`${s.activity || ''} · ${sinceText(s.since)}`, SUB_MAX),
+                pct: SUMMARY_ROW_PCT[s.state] !== undefined ? SUMMARY_ROW_PCT[s.state] : SUMMARY_ROW_PCT.idle,
+                color: STATE_COLOR[s.state] || STATE_COLOR.idle
+            }))
+            : [{ k: 'nenhum terminal', v: '', sub: 'abra um terminal do Claude Code', pct: 0, color: STATE_COLOR.idle }];
+        const extra = sessions.length - shown.length;
         return {
             statMode: 'meters',
-            statHead: SUMMARY_HEAD[state] || SUMMARY_HEAD.idle,
+            statHead: (SUMMARY_HEAD[state] || SUMMARY_HEAD.idle) + (extra > 0 ? ` · +${extra}` : ''),
             statColor: STATE_COLOR[state] || STATE_COLOR.idle,
-            statRows: [row('Trabalhando', working, STATE_COLOR.working), row('Precisando', waiting, STATE_COLOR.waiting), row('Prontos', done, STATE_COLOR.done)],
+            statRows: rows,
             pulse: waiting > 0,
             bgColor: waiting > 0 ? WAITING_BG : undefined,
             borderColor: waiting > 0 ? WAITING_BORDER : undefined,
