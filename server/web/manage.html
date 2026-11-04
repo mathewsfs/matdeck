@@ -580,7 +580,7 @@
                                 <input type="text" id="cfg-claude-dir" class="form-input mono" data-path="claude.sessionsDir" placeholder="~/.local/state/matdeck/claude-sessions" autocomplete="off" spellcheck="false">
                             </div>
                             <div class="control-group">
-                                <label for="cfg-claude-slots">Vagas de terminal (teclas)</label>
+                                <label for="cfg-claude-slots">Linhas do resumo (terminais)</label>
                                 <input type="number" id="cfg-claude-slots" class="form-input" data-path="claude.slots" data-type="number" min="1" max="12" inputmode="numeric">
                             </div>
                             <div class="control-group">
@@ -601,7 +601,7 @@
                             </div>
                         </div>
                         <p class="settings-note" id="claude-status" aria-live="polite">Lendo o estado…</p>
-                        <p class="settings-note">As teclas "Claude: terminal N" e "Claude: resumo" mostram os terminais do Claude Code abertos neste PC (nome do projeto, estado e atividade) e um toque leva a janela do terminal para a frente. Para o Claude Code avisar o MatDeck, cole o trecho abaixo em <code>~/.claude/settings.json</code> (junte ao bloco <code>hooks</code> que já existir). O MatDeck mantém a cópia do hook atualizada no caminho indicado. Se você mudar a "Pasta das sessões" (ou usar a variável <code>MATDECK_CLAUDE_STATE_DIR</code>), o trecho passa a levar <code>MATDECK_CLAUDE_STATE_DIR='...'</code> em cada comando, para o hook gravar onde o MatDeck lê: cole o trecho de novo depois de mudar a pasta.</p>
+                        <p class="settings-note">A tecla "Claude: resumo" lista os terminais do Claude Code abertos neste PC (nome da sessão, atividade e tempo, na cor do estado) e um toque leva para a frente a janela do terminal que precisa de você. Estique a tecla em "Tamanho da tecla" (até a largura da tela). Para o Claude Code avisar o MatDeck, cole o trecho abaixo em <code>~/.claude/settings.json</code> (junte ao bloco <code>hooks</code> que já existir). O MatDeck mantém a cópia do hook atualizada no caminho indicado. Se você mudar a "Pasta das sessões" (ou usar a variável <code>MATDECK_CLAUDE_STATE_DIR</code>), o trecho passa a levar <code>MATDECK_CLAUDE_STATE_DIR='...'</code> em cada comando, para o hook gravar onde o MatDeck lê: cole o trecho de novo depois de mudar a pasta.</p>
                         <pre id="claude-hook-snippet" class="form-input mono" style="white-space: pre; overflow-x: auto; max-height: 220px; user-select: all;" tabindex="0">Carregando…</pre>
                         <div class="control-group">
                             <button type="button" class="btn btn-secondary btn-sm" id="btn-claude-copy" disabled>Copiar</button>

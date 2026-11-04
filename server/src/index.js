@@ -452,8 +452,7 @@ class MatDeckServer {
                 profileList: this.getProfileList(true),
                 audioApps: this.audioMixer.getAll(),
                 apps,
-                plugins: this.installedPlugins,
-                claudeSlots: this.claudeSessions.snapshot().slots
+                plugins: this.installedPlugins
             }));
         });
 
@@ -1091,7 +1090,7 @@ class MatDeckServer {
                 const result = this.dataAssistant.handleAction(actionId, eventType);
                 if (result && typeof result.catch === 'function') result.catch(e => console.warn(`[Data] Falha em ${actionId}: ${e.message}`));
             } else if (prefix === 'claude') {
-                // Claude Code: toque foca a janela do terminal da vaga (ou de quem precisa de você, no resumo)
+                // Claude Code: toque no resumo foca a janela do terminal que precisa de você
                 const result = this.claudeSessions.handleAction(actionId, eventType);
                 if (result && typeof result.catch === 'function') result.catch(e => console.warn(`[Claude] Falha em ${actionId}: ${e.message}`));
             } else if (prefix === 'player') {
@@ -1180,10 +1179,9 @@ class MatDeckServer {
         return new Set(['ts:talking', 'ts:status', 'spotify:now_playing', 'player:now_playing', 'player:panel', 'claude:summary']);
     }
 
-    /** O título dessa ação é o conteúdo (conjunto acima, mais todas as vagas claude:slot:N, cujo título é o nome do projeto). */
+    /** O título dessa ação é o conteúdo (não o título que o usuário deu à tecla). */
     static titleIsContent(actionId) {
-        const id = String(actionId);
-        return MatDeckServer.TITLE_IS_CONTENT.has(id) || id.startsWith('claude:slot:');
+        return MatDeckServer.TITLE_IS_CONTENT.has(String(actionId));
     }
 
     /** Campos que descrevem o ESTADO visual de uma ação (espelhados entre perfis que usam a mesma ação). */
@@ -1631,7 +1629,7 @@ class MatDeckServer {
         this.config.on('change', ({ section }) => {
             if (section !== 'claude') return;
             this.claudeSessions.reconnect();
-            // Mudar as vagas muda a aparência das teclas sem o coletor emitir `change`
+            // Mudar o número de linhas muda a aparência do resumo sem o coletor emitir `change`
             this.claudeLastSent.clear();
             this.pushClaudeKeys();
         });

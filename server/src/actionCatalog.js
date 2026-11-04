@@ -190,7 +190,7 @@ const STATIC_GROUPS = [
 ];
 
 /**
- * @param {object} ctx  { profileList: array, audioApps: object, apps: array, plugins: array, claudeSlots: number }
+ * @param {object} ctx  { profileList: array, audioApps: object, apps: array, plugins: array }
  */
 function buildActionCatalog(ctx) {
     const groups = STATIC_GROUPS.map(g => ({ ...g, actions: g.actions.map(a => ({ kind: 'action', ...a })) }));
@@ -206,13 +206,10 @@ function buildActionCatalog(ctx) {
     }
     groups.push(volume);
 
-    // Terminais do Claude Code: uma tecla por vaga (config claude.slots) e o resumo
-    const slotCount = Number.isInteger(ctx.claudeSlots) && ctx.claudeSlots > 0 ? ctx.claudeSlots : 4;
-    const claude = { id: 'claude', label: 'Claude Code', icon: 'claude', actions: [] };
-    for (let n = 1; n <= slotCount; n++) {
-        claude.actions.push({ id: `claude:slot:${n}`, label: `Claude: terminal ${n}`, icon: 'claude', kind: 'indicator', hint: `Terminal do Claude Code na vaga ${n} (por prioridade: precisa de você, trabalhando, pronto). Toque foca a janela dele` });
-    }
-    claude.actions.push({ id: 'claude:summary', label: 'Claude: resumo', icon: 'claude', kind: 'indicator', defaultSpan: { cols: 2, rows: 2 }, hint: 'Lista dos terminais (projeto, estado, atividade e tempo), quem precisa de você primeiro; toque foca esse terminal (padrão: 2×2)' });
+    // Terminais do Claude Code: a lista (como a tela do relógio) num bloco só
+    const claude = { id: 'claude', label: 'Claude Code', icon: 'claude', actions: [
+        { id: 'claude:summary', label: 'Claude: resumo', icon: 'claude', kind: 'indicator', defaultSpan: { cols: 2, rows: 2 }, hint: 'Lista dos terminais do Claude Code (nome, atividade e tempo, barra na cor do estado), quem precisa de você primeiro; toque foca esse terminal. Padrão 2×2; estique até a largura da tela em "Tamanho da tecla"' }
+    ] };
     groups.push(claude);
 
     // Aplicativos instalados (.desktop do sistema e flatpaks)

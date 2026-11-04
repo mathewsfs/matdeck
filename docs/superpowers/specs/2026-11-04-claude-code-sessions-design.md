@@ -3,6 +3,12 @@
 Data: 2026-11-04. Estado: **aprovado pelo dono** (revisado por um "builder check"; respostas incorporadas). Decisões tomadas por mim estão marcadas
 *(decisão minha)*; o que o dono pediu está sem marca.
 
+> **Atualização (04/11/2026, depois da entrega):** a pedido do dono, as teclas "Claude: terminal N" foram removidas e
+> "Claude: resumo" virou a lista dos terminais como na tela do relógio (uma linha por sessão: nome, atividade, tempo,
+> barra na cor do estado; contagens no cabeçalho; `claude.slots` passou a ser o número de linhas). O coletor passou a
+> ler o transcript de forma incremental (como o TranscriptIndex do relógio) para o nome da sessão (custom-title/ai-title)
+> e a interrupção (Esc / permissão negada), que tira a sessão de "precisa". `sinceText` abaixo de 1 min mostra `<1m`.
+
 ## Intenção
 
 O dono tem um relógio ESP8266 (projeto pessoal `smart-clock`, fora deste repositório) que mostra, em

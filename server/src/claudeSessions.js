@@ -6,18 +6,19 @@
  * session_label, short_tool, activity_text, aggregate). Dentro do Flatpak o servidor não enxerga a home, então TODO acesso
  * aos arquivos do host passa pelo hostExec (nunca fs): a varredura, os mtimes dos transcripts e a instalação do hook.
  *
- * Varredura = no máximo duas chamadas ao host: (1) SCAN_SH lista os `*.json` e imprime cada conteúdo em uma linha;
- * (2) STAT_SH, só se houver transcript_path, devolve o mtime de cada um (uma linha por caminho, 0 se não existir).
+ * Varredura = no máximo três chamadas ao host: (1) SCAN_SH lista os `*.json` e imprime cada conteúdo em uma linha;
+ * (2) STAT_SH, só se houver transcript_path, devolve `mtime tamanho` de cada um (uma linha por caminho, `0 0` se não existir);
+ * (3) TAIL_SH, só para os transcripts que cresceram, devolve as linhas novas que interessam (título da sessão e interrupção),
+ * como o TranscriptIndex do relógio: cada transcript é lido só a partir do ponto onde a leitura anterior parou.
  * Formato do SCAN_SH: `dir ok|missing`, depois, por arquivo, `== <nome>` e o JSON em uma linha.
  * Cadência: scanActiveMs com viewers conectados, scanIdleMs sem eles; o tick (1 s) só recalcula o "há quanto tempo".
  *
  * Variáveis de ambiente: MATDECK_CLAUDE_STATE_DIR (pasta das sessões, vence a config) e MATDECK_CLAUDE_HOOK_DIR
  * (pasta onde o hook é instalado, em vez de ~/.local/state/matdeck; usada pelos testes).
  *
- * Diferença de propósito em relação ao relógio: não lê o transcript para detectar `was_interrupted` nem o `session_name` do
- * TranscriptIndex. Sem isso, negar uma permissão ou apertar Esc (que não dispara `Stop`) deixa a tecla em "waiting" até
- * waitingMinutes (120) ou em "working" até workingMinutes (15) ou o próximo prompt; terminal fechado sem `SessionEnd` fica "done"
- * até staleMinutes.
+ * Do transcript vêm o nome da sessão (custom-title do /rename, senão o ai-title) e a última interrupção (Esc ou permissão
+ * negada não disparam `Stop`; a interrupção posterior ao último evento do hook deixa a sessão "livre", como no relógio).
+ * Terminal fechado sem `SessionEnd` fica "done" até staleMinutes.
  *
  * Foco (handleAction): primeiro só pelos PIDs da cadeia do terminal; se falhar, pela classe da janela (term_program).
  * Com o kdotool instalado as dicas de classe são buscadas antes dos PIDs e poderiam focar outro Konsole/Maestri.
@@ -64,8 +65,18 @@ const SCAN_SH = [
     'done'
 ].join('\n');
 
-// mtime de cada caminho (Linux: stat -c %Y; macOS/BSD: stat -f %m), 0 se não existir
-const STAT_SH = 'for p in "$@"; do stat -c %Y -- "$p" 2>/dev/null || stat -f %m -- "$p" 2>/dev/null || echo 0; done';
+// `mtime tamanho` de cada caminho (Linux: stat -c; macOS/BSD: stat -f), `0 0` se não existir
+const STAT_SH = 'for p in "$@"; do stat -c "%Y %s" -- "$p" 2>/dev/null || stat -f "%m %z" -- "$p" 2>/dev/null || echo "0 0"; done';
+
+// Trecho novo de cada transcript (pares caminho/offset): só as linhas com título da sessão ou interrupção
+const TRANSCRIPT_MARKS = '"custom-title"|"ai-title"|\\[Request interrupted by user';
+const TAIL_SH = [
+    'while [ $# -ge 2 ]; do',
+    '  echo "== $1"',
+    `  tail -c +$(($2 + 1)) -- "$1" 2>/dev/null | grep -a -E '${TRANSCRIPT_MARKS}'`,
+    '  shift 2',
+    'done'
+].join('\n');
 
 const WRITE_SH = 'mkdir -p "$(dirname "$1")" && cat > "$1.tmp" && mv -f "$1.tmp" "$1"';
 
@@ -85,14 +96,26 @@ function lastSignal(record) {
     return Math.max(Number(record.ts) || 0, Number(record.activity) || 0);
 }
 
+/** Esc ou permissão negada: o Claude Code não dispara Stop, mas grava a interrupção no transcript. */
+function wasInterrupted(record) {
+    const interrupted = Number(record.interrupted) || 0;
+    return interrupted > 0 && (record.state === 'working' || record.state === 'waiting') && interrupted >= (Number(record.ts) || 0);
+}
+
 /** Estado de uma sessão depois de aplicar os prazos de validade. */
 function effectiveState(record, now, ttl = DEFAULT_TTL) {
     const state = record.state || 'idle';
+    if (wasInterrupted(record)) return 'idle';
     const age = now - lastSignal(record);
     if (state === 'working' && age > ttl.workingTtl) return 'idle';
     if (state === 'done' && age > ttl.doneTtl) return 'idle';
     if (state === 'waiting' && age > ttl.waitingTtl) return 'idle';
     return state;
+}
+
+/** Nome dado com /rename, senão o título automático do Claude Code, senão a pasta. */
+function sessionName(record) {
+    return (typeof record.title === 'string' && record.title) || sessionLabel(record.cwd);
 }
 
 /** Nome curto do terminal a partir da pasta: projeto acima de .maestri, senão o nome da pasta. */
@@ -152,7 +175,7 @@ function aggregate(records, now, ttl = DEFAULT_TTL) {
         const ts = record.ts === undefined || record.ts === null ? now : record.ts;
         summary.sessions.push({
             id: record.session_id,
-            name: sessionLabel(record.cwd),
+            name: sessionName(record),
             state: shown,
             tool: active ? shortTool(record.tool) : null,
             tool_full: active ? (record.tool || null) : null,
@@ -171,8 +194,8 @@ function aggregate(records, now, ttl = DEFAULT_TTL) {
     // Muda quando o estado geral ou o estado/nome de alguma sessão muda
     summary.key = JSON.stringify([summary.state, summary.sessions.map((s) => [s.name, s.state])]);
     summary.tool_key = JSON.stringify(summary.sessions.map((s) => [s.tool, s.detail]));
-    // Muda quando o texto do "há quanto tempo" de alguma sessão muda: a cada segundo no primeiro minuto ('12s'), depois a cada minuto
-    summary.since_key = JSON.stringify(summary.sessions.map((s) => (s.since < 60 ? Math.floor(s.since) : 60 * Math.floor(s.since / 60))));
+    // Muda quando o texto do "há quanto tempo" de alguma sessão muda (por minuto: '<1m', '2m', '1h05')
+    summary.since_key = JSON.stringify(summary.sessions.map((s) => 60 * Math.floor(s.since / 60)));
     return summary;
 }
 
@@ -213,17 +236,16 @@ function classHintFor(termProgram) {
 // Aparência das teclas
 // ----------------------------------------------------------------------
 
-const STATE_LABEL = { waiting: 'PRECISA', working: 'TRAB.', done: 'PRONTO', idle: 'LIVRE' };
 const STATE_COLOR = { waiting: '#F87171', working: '#3B82F6', done: '#16A34A', idle: '#6B7280' };
-const SUMMARY_HEAD = { waiting: 'PRECISA DE VOCÊ', working: 'TRABALHANDO', done: 'PRONTO', idle: 'LIVRE' };
 const SUMMARY_ROW_PCT = { waiting: 100, working: 100, done: 60, idle: 20 };   // barra da linha do resumo por estado
 const WAITING_BORDER = '#F87171';
 const SUB_MAX = 40;
+const ROW_SUB_MAX = 72;   // atividade na linha do resumo (o CSS corta com reticências o que não couber na tecla)
 
-/** Tempo decorrido curto: '12s', '2m', '1h05'. */
+/** Tempo decorrido curto, como no relógio: '<1m', '2m', '1h05'. */
 function sinceText(seconds) {
     const s = Math.max(0, Math.floor(Number(seconds) || 0));
-    if (s < 60) return s + 's';
+    if (s < 60) return '<1m';
     if (s < 3600) return Math.floor(s / 60) + 'm';
     return Math.floor(s / 3600) + 'h' + String(Math.floor((s % 3600) / 60)).padStart(2, '0');
 }
@@ -233,57 +255,68 @@ const clip = (text, max) => (text.length > max ? text.slice(0, max - 1) + '…' 
 /** Aparência de uma tecla `claude:*` (campos do updateKey; null para ações desconhecidas). */
 function keyStateFor(actionId, summary, slots = 4) {
     const id = String(actionId);
-    if (id === 'claude:summary') {
-        // Lista dos terminais (como a tela do relógio): uma linha por sessão na ordem de prioridade, limitada às vagas
-        const { working = 0, waiting = 0 } = summary || {};
-        const state = (summary && summary.state) || 'idle';
-        const sessions = (summary && summary.sessions) || [];
-        const max = Math.max(1, Number(slots) || 1);
-        const shown = sessions.slice(0, max);
-        const rows = shown.length
-            ? shown.map((s) => ({
-                k: s.name,
-                v: STATE_LABEL[s.state] || STATE_LABEL.idle,
-                sub: clip(`${s.activity || ''} · ${sinceText(s.since)}`, SUB_MAX),
-                pct: SUMMARY_ROW_PCT[s.state] !== undefined ? SUMMARY_ROW_PCT[s.state] : SUMMARY_ROW_PCT.idle,
-                color: STATE_COLOR[s.state] || STATE_COLOR.idle
-            }))
-            : [{ k: 'nenhum terminal', v: '', sub: 'abra um terminal do Claude Code', pct: 0, color: STATE_COLOR.idle }];
-        const extra = sessions.length - shown.length;
-        return {
-            statMode: 'meters',
-            statHead: (SUMMARY_HEAD[state] || SUMMARY_HEAD.idle) + (extra > 0 ? ` · +${extra}` : ''),
-            statColor: STATE_COLOR[state] || STATE_COLOR.idle,
-            statRows: rows,
-            pulse: waiting > 0,
-            bgColor: waiting > 0 ? WAITING_BG : undefined,
-            borderColor: waiting > 0 ? WAITING_BORDER : undefined,
-            active: working + waiting > 0,
-            badge: null
-        };
-    }
-    const slot = /^claude:slot:(\d+)$/.exec(id);
-    if (!slot) return null;
-    const n = Number(slot[1]);
-    const session = n >= 1 && n <= slots && summary ? summary.sessions[n - 1] : null;
-    if (!session) {
-        return { title: '—', statMode: 'bar', statHead: '', statBig: 'VAZIA', statSub: '', statColor: STATE_COLOR.idle, badge: null, bgColor: undefined, borderColor: undefined, pulse: false, active: false, statPercent: null };
-    }
-    const waiting = session.state === 'waiting';
+    if (id !== 'claude:summary') return null;
+    // A lista do relógio: uma linha por sessão na ordem de prioridade (nome · atividade · tempo, barra na cor do estado),
+    // limitada às linhas configuradas (claude.slots); o que não cabe vira "+N" no cabeçalho, que traz as contagens
+    const { working = 0, waiting = 0, done = 0 } = summary || {};
+    const state = (summary && summary.state) || 'idle';
+    const sessions = (summary && summary.sessions) || [];
+    const max = Math.max(1, Number(slots) || 1);
+    const shown = sessions.slice(0, max);
+    const rows = shown.length
+        ? shown.map((s) => ({
+            k: s.name,
+            v: sinceText(s.since),
+            sub: clip(str(s.activity), ROW_SUB_MAX),
+            pct: SUMMARY_ROW_PCT[s.state] !== undefined ? SUMMARY_ROW_PCT[s.state] : SUMMARY_ROW_PCT.idle,
+            color: STATE_COLOR[s.state] || STATE_COLOR.idle
+        }))
+        : [{ k: 'nenhum terminal', v: '', sub: 'abra um terminal do Claude Code', pct: 0, color: STATE_COLOR.idle }];
+    const counts = [];
+    if (waiting) counts.push(`${waiting} precisa`);
+    if (working) counts.push(`${working} trab.`);
+    if (done) counts.push(`${done} pronto${done > 1 ? 's' : ''}`);
+    const extra = sessions.length - shown.length;
+    if (extra > 0) counts.push(`+${extra}`);
     return {
-        title: session.name,
-        statMode: 'bar',
-        statHead: sinceText(session.since),
-        statBig: STATE_LABEL[session.state] || STATE_LABEL.idle,
-        statSub: clip(str(session.activity), SUB_MAX),
-        statColor: STATE_COLOR[session.state] || STATE_COLOR.idle,
-        badge: null,
-        bgColor: waiting ? WAITING_BG : undefined,
-        borderColor: waiting ? WAITING_BORDER : undefined,
-        pulse: waiting,
-        active: session.state === 'working' || waiting,
-        statPercent: null
+        statMode: 'meters',
+        statHead: counts.length ? counts.join(' · ') : 'livre',
+        statColor: STATE_COLOR[state] || STATE_COLOR.idle,
+        statRows: rows,
+        pulse: waiting > 0,
+        bgColor: waiting > 0 ? WAITING_BG : undefined,
+        borderColor: waiting > 0 ? WAITING_BORDER : undefined,
+        active: working + waiting > 0,
+        badge: null
     };
+}
+
+/** Interpreta as linhas que o TAIL_SH devolveu: por transcript, { title, aiTitle, interrupted } (só o que apareceu). */
+function parseTranscriptTail(stdout) {
+    const out = new Map();
+    let current = null;
+    for (const line of String(stdout || '').split('\n')) {
+        if (line.startsWith('== ')) { current = line.slice(3); if (!out.has(current)) out.set(current, {}); continue; }
+        if (!current || !line.trim()) continue;
+        let data;
+        try { data = JSON.parse(line); } catch (e) { continue; }
+        if (!data || typeof data !== 'object') continue;
+        const info = out.get(current);
+        if (data.type === 'custom-title' && typeof data.customTitle === 'string' && data.customTitle.trim()) info.title = data.customTitle.trim();
+        else if (data.type === 'ai-title' && typeof data.aiTitle === 'string' && data.aiTitle.trim()) info.aiTitle = data.aiTitle.trim();
+        else if (isInterrupt(data)) { const t = Date.parse(data.timestamp); if (Number.isFinite(t)) info.interrupted = t / 1000; }
+    }
+    return out;
+}
+
+/** Linha que o Claude Code grava quando você aperta Esc ou nega uma permissão (igual ao transcript.py do relógio). */
+function isInterrupt(entry) {
+    if (entry.type !== 'user' || entry.isSidechain) return false;
+    const content = entry.message && entry.message.content;
+    const marker = '[Request interrupted by user';
+    if (typeof content === 'string') return content.startsWith(marker);
+    if (Array.isArray(content)) return content.some((item) => item && item.type === 'text' && String(item.text || '').startsWith(marker));
+    return false;
 }
 
 class ClaudeSessions extends EventEmitter {
@@ -305,6 +338,7 @@ class ClaudeSessions extends EventEmitter {
         this.scanIdleMs = opts.scanIdleMs || SCAN_IDLE_MS;
         this.tickMs = opts.tickMs || TICK_MS;
         this.records = [];
+        this.transcripts = new Map();   // transcript_path -> { offset, title, aiTitle, interrupted }
         this.summary = aggregate([], this.now(), DEFAULT_TTL);
         this.dirExists = false;
         this.lastRead = 0;
@@ -451,12 +485,19 @@ class ClaudeSessions extends EventEmitter {
             scan = parseScan(await this.run(SCAN_SH, [dir]));
             const paths = [...new Set(scan.records.map((r) => r.transcript_path).filter((p) => typeof p === 'string' && p))];
             if (paths.length) {
-                const mtimes = (await this.run(STAT_SH, paths)).split('\n');
-                const byPath = new Map(paths.map((p, i) => [p, Number(mtimes[i]) || 0]));
+                const stats = (await this.run(STAT_SH, paths)).split('\n');
+                const byPath = new Map(paths.map((p, i) => { const [m, z] = String(stats[i] || '').trim().split(/\s+/); return [p, { mtime: Number(m) || 0, size: Number(z) || 0 }]; }));
+                await this.indexTranscripts(byPath);
                 for (const record of scan.records) {
-                    const mtime = byPath.get(record.transcript_path);
-                    if (mtime > 0) record.activity = mtime;
+                    const st = byPath.get(record.transcript_path);
+                    if (st && st.mtime > 0) record.activity = st.mtime;
+                    const info = this.transcripts.get(record.transcript_path);
+                    if (info) {
+                        record.title = info.title || info.aiTitle || null;
+                        if (info.interrupted) record.interrupted = info.interrupted;
+                    }
                 }
+                for (const p of this.transcripts.keys()) if (!byPath.has(p)) this.transcripts.delete(p);
             }
             this.loggedScanError = false;
         } catch (e) {
@@ -467,6 +508,27 @@ class ClaudeSessions extends EventEmitter {
         this.records = scan.records;
         this.lastRead = this.now();
         this.recompute();
+    }
+
+    /** Lê o trecho novo de cada transcript que cresceu (uma chamada ao host para todos) e guarda título e interrupção. */
+    async indexTranscripts(byPath) {
+        const args = [];
+        for (const [p, st] of byPath) {
+            let info = this.transcripts.get(p);
+            if (!info || st.size < info.offset) { info = { offset: 0, title: null, aiTitle: null, interrupted: null }; this.transcripts.set(p, info); }
+            if (st.size > info.offset) args.push(p, String(info.offset));
+        }
+        if (!args.length) return;
+        const found = parseTranscriptTail(await this.run(TAIL_SH, args));
+        for (let i = 0; i < args.length; i += 2) {
+            const p = args[i];
+            const info = this.transcripts.get(p);
+            const got = found.get(p) || {};
+            if (got.title) info.title = got.title;
+            if (got.aiTitle) info.aiTitle = got.aiTitle;
+            if (got.interrupted) info.interrupted = got.interrupted;
+            info.offset = byPath.get(p).size;
+        }
     }
 
     recompute() {
@@ -515,14 +577,9 @@ class ClaudeSessions extends EventEmitter {
     // Ações
     // ------------------------------------------------------------------
 
-    /** Sessão que a tecla representa: vaga N, ou (summary) a primeira waiting, senão a primeira working. */
+    /** Sessão que o toque no resumo foca: a primeira waiting, senão a primeira working. */
     sessionFor(actionId) {
         const sessions = this.summary.sessions;
-        const slot = /^claude:slot:(\d+)$/.exec(String(actionId));
-        if (slot) {
-            const n = Number(slot[1]);
-            return n >= 1 && n <= this.settings().slots ? sessions[n - 1] || null : null;
-        }
         if (actionId === 'claude:summary') return sessions.find((s) => s.state === 'waiting') || sessions.find((s) => s.state === 'working') || null;
         return null;
     }
