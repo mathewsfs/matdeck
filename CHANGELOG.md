@@ -11,7 +11,8 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
   senão o título automático, senão a pasta), a atividade e há quanto tempo, barra na cor do estado, quem precisa
   de você primeiro (a tecla fica vermelha e pulsa); um toque foca a janela desse terminal (no Maestri, a janela
   do Maestri). Esc e permissão negada são lidos do transcript, como no relógio. Mascote animado (GIF por estado,
-  pasta em Ajustes → Claude Code, servido em `/api/claude/mascot/<estado>.gif`) no canto do resumo. O estado vem do hook
+  pasta em Ajustes → Claude Code, servido em `/api/claude/mascot/<estado>.gif`): um em cada linha do resumo
+  (padrão), só no canto, ou os dois (`claude.mascotMode`). O estado vem do hook
   `scripts/claude-code-hook.py`, que o servidor mantém copiado em `~/.local/state/matdeck/claude-code-hook.py`
   (visível ao host mesmo no Flatpak). Em Ajustes → Claude Code: pasta, linhas do resumo, prazos (`claude.*`) e o trecho
   do `settings.json` com botão "Copiar". Rotas `GET /api/claude` e `POST /api/claude/refresh`. Módulo:

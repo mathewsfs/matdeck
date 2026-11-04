@@ -168,7 +168,7 @@ fs.mkdirSync(stateDir, { recursive: true });
     fs.mkdirSync(mascotDir, { recursive: true });
     fs.writeFileSync(path.join(mascotDir, 'working.gif'), Buffer.from('GIF89a-teste-working', 'binary'));
     server.config.set('claude', { mascotDir });
-    check('resumo passa a trazer statMascot', await waitFor(() => upd(0, (k) => typeof k.statMascot === 'string' && /mascot\/working\.gif/.test(k.statMascot))), msgs.filter((m) => m.event === 'updateKey').slice(-2));
+    check('resumo passa a trazer o mascote em cada linha (modo padrão rows)', await waitFor(() => upd(0, (k) => Array.isArray(k.statRows) && typeof k.statRows[0].img === 'string' && /mascot\/working\.gif/.test(k.statRows[0].img) && k.statMascot === null)), msgs.filter((m) => m.event === 'updateKey').slice(-2));
     const gif = await new Promise((resolve) => http.get({ host: '127.0.0.1', port, path: '/api/claude/mascot/working.gif' }, (res) => { const chunks = []; res.on('data', (c) => chunks.push(c)); res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], body: Buffer.concat(chunks) })); }));
     check('GET do GIF: 200 image/gif com os bytes do arquivo', gif.status === 200 && gif.type === 'image/gif' && gif.body.toString('binary') === 'GIF89a-teste-working', gif);
     check('estado sem GIF: 404; nome inválido: 404', (await request(port, 'GET', '/api/claude/mascot/done.gif')).status === 404 && (await request(port, 'GET', '/api/claude/mascot/..%2Fx.gif')).status === 404);

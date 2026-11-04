@@ -606,7 +606,17 @@
                                 <input type="text" id="cfg-claude-mascot" class="form-input mono" data-path="claude.mascotDir" placeholder="~/…/assets/clawd (working, waiting, done, idle, limit .gif)" autocomplete="off" spellcheck="false">
                             </div>
                         </div>
-                        <p class="settings-note">Com a pasta preenchida, o mascote animado aparece no canto do "Claude: resumo" seguindo o estado geral (<code>working.gif</code>, <code>waiting.gif</code>, <code>done.gif</code>, <code>idle.gif</code>; <code>limit.gif</code> quando a semana de consumo do Claude passa de 90% e nada está rodando). Os GIFs não vêm com o MatDeck: use os do Mascot Studio, por exemplo (a pasta fica no seu PC).</p>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-claude-mascot-mode">Onde o mascote aparece</label>
+                                <select id="cfg-claude-mascot-mode" class="form-select" data-path="claude.mascotMode">
+                                    <option value="rows">Um em cada linha (no canto só quando a lista está vazia)</option>
+                                    <option value="corner">Só no canto, seguindo o estado geral</option>
+                                    <option value="both">Nos dois lugares</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p class="settings-note">Com a pasta preenchida, o mascote animado aparece no "Claude: resumo" seguindo o estado geral (<code>working.gif</code>, <code>waiting.gif</code>, <code>done.gif</code>, <code>idle.gif</code>; <code>limit.gif</code> quando a semana de consumo do Claude passa de 90% e nada está rodando). Os GIFs não vêm com o MatDeck: use os do Mascot Studio, por exemplo (a pasta fica no seu PC).</p>
                         <p class="settings-note" id="claude-status" aria-live="polite">Lendo o estado…</p>
                         <p class="settings-note">A tecla "Claude: resumo" lista os terminais do Claude Code abertos neste PC (nome da sessão, atividade e tempo, na cor do estado) e um toque leva para a frente a janela do terminal que precisa de você. Estique a tecla em "Tamanho da tecla" (até a largura da tela). Para o Claude Code avisar o MatDeck, cole o trecho abaixo em <code>~/.claude/settings.json</code> (junte ao bloco <code>hooks</code> que já existir). O MatDeck mantém a cópia do hook atualizada no caminho indicado. Se você mudar a "Pasta das sessões" (ou usar a variável <code>MATDECK_CLAUDE_STATE_DIR</code>), o trecho passa a levar <code>MATDECK_CLAUDE_STATE_DIR='...'</code> em cada comando, para o hook gravar onde o MatDeck lê: cole o trecho de novo depois de mudar a pasta.</p>
                         <pre id="claude-hook-snippet" class="form-input mono" style="white-space: pre; overflow-x: auto; max-height: 220px; user-select: all;" tabindex="0">Carregando…</pre>

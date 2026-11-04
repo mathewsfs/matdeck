@@ -584,6 +584,31 @@ body.is-offline .deck-grid {
     padding-right: 31%;
 }
 
+/* Mascote por linha do resumo: imagem à esquerda, texto e barra ao lado */
+.key-stat-meter.has-img {
+    font-size: clamp(10px, calc(2.5vmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
+    font-size: clamp(10px, calc(8cqmin * var(--key-font-scale) * var(--stat-font, 1)), 30px);
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+}
+
+.key-stat-meter-body {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.key-stat-meter-img {
+    flex: 0 0 auto;
+    height: 2.4em;
+    width: auto;
+    max-width: 3.2em;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: -webkit-optimize-contrast;
+    pointer-events: none;
+}
+
 /* Medidores empilhados (uso de IA): rótulo, prazo e valor por linha, com barra */
 .key-stat-meters {
     flex: 1 1 auto;
