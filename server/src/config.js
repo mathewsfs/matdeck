@@ -45,6 +45,14 @@ const DEFAULTS = {
     data: {
         url: 'http://127.0.0.1:8765' // servidor da Data (assistente de voz); MATDECK_DATA_URL tem precedência
     },
+    claude: {
+        sessionsDir: '',         // vazio = ~/.local/state/matdeck/claude-sessions (onde o hook grava); MATDECK_CLAUDE_STATE_DIR tem precedência
+        slots: 4,                // teclas claude:slot:N disponíveis (1 a 12)
+        workingMinutes: 15,      // working sem sinal (hook ou transcript) por mais que isso = sessão morta
+        doneMinutes: 10,         // done vira idle depois disso
+        waitingMinutes: 120,
+        staleMinutes: 360        // sessão sem sinal há mais que isso some do placar
+    },
     fans: {
         enabled: true,
         host: '127.0.0.1',

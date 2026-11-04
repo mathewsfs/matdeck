@@ -33,7 +33,7 @@ const port = 18000 + Math.floor(Math.random() * 1000);
     fake.setHandler('apps.icon', () => ({ png: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' }));
     fake.setHandler('key.shortcut', () => ({}));
 
-    const env = { ...process.env, MATDECK_PLATFORM: 'darwin', MATDECK_HELPER_SOCKET: sock, MATDECK_DATA_DIR: path.join(tmp, 'data'), PORT: String(port), MATDECK_TRAY: '0', MATDECK_ELGATO: '0' };
+    const env = { ...process.env, MATDECK_PLATFORM: 'darwin', MATDECK_HELPER_SOCKET: sock, MATDECK_DATA_DIR: path.join(tmp, 'data'), MATDECK_CLAUDE_STATE_DIR: path.join(tmp, 'claude-sessions'), MATDECK_CLAUDE_HOOK_DIR: path.join(tmp, 'claude-hook'), PORT: String(port), MATDECK_TRAY: '0', MATDECK_ELGATO: '0' };
     delete env.MATDECK_HELPER_APP;
     const srv = spawn(process.execPath, [path.join(__dirname, '..', '..', 'src', 'index.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let log = '';

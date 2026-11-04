@@ -24,7 +24,7 @@ const port = 19000 + Math.floor(Math.random() * 1000);
     const fake = await fakeHelper.start({ socketPath: sock, hello: { version: '1.5.0', pid: 1, platform: { version: '15.8.1', arch: 'arm64' }, permissions: { accessibility: true } } });
     for (const op of ['permissions.status', 'window.subscribe', 'audio.master.subscribe', 'apps.list']) fake.setHandler(op, () => ({ accessibility: true, subscribed: true, apps: [] }));
     fake.setHandler('audio.master.get', () => ({ volume: 30, muted: false }));
-    const env = { ...process.env, MATDECK_PLATFORM: 'darwin', MATDECK_HELPER_SOCKET: sock, MATDECK_DATA_DIR: path.join(tmp, 'data'), PORT: String(port), MATDECK_TRAY: '0', MATDECK_ELGATO: '0' };
+    const env = { ...process.env, MATDECK_PLATFORM: 'darwin', MATDECK_HELPER_SOCKET: sock, MATDECK_DATA_DIR: path.join(tmp, 'data'), MATDECK_CLAUDE_STATE_DIR: path.join(tmp, 'claude-sessions'), MATDECK_CLAUDE_HOOK_DIR: path.join(tmp, 'claude-hook'), PORT: String(port), MATDECK_TRAY: '0', MATDECK_ELGATO: '0' };
     delete env.MATDECK_HELPER_APP;
     const srv = spawn(process.execPath, [path.join(ROOT, 'server', 'src', 'index.js')], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     let log = ''; srv.stdout.on('data', (d) => { log += d; }); srv.stderr.on('data', (d) => { log += d; });

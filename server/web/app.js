@@ -637,7 +637,7 @@ function isDarkColor(hex) {
 }
 
 function isStatKey(cfg) {
-    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel' || cfg.actionId === 'discord:voice_room'));
+    return !!(cfg && ((cfg.actionId && (cfg.actionId.startsWith('stats:') || cfg.actionId.startsWith('ai:') || cfg.actionId.startsWith('claude:'))) || cfg.statValue !== undefined || cfg.statMode === 'media' || cfg.statMode === 'meters' || cfg.actionId === 'spotify:now_playing' || cfg.actionId === 'player:now_playing' || cfg.actionId === 'player:panel' || cfg.actionId === 'discord:voice_room'));
 }
 
 

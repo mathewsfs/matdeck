@@ -29,7 +29,7 @@ const postJson = (p, body) => new Promise((resolve, reject) => {
     execFileSync(path.join(REPO, 'scripts', 'dev-mac-sync.sh'), { stdio: 'inherit' });
     console.log('[vm] encerrando servidor/helper antigos e subindo o servidor…');
     ssh(`pkill -f '^node .*matdeck/server/src/index.js' || true; pkill -x matdeck-helper || true; sleep 1; rm -f /tmp/matdeck-vm.log`);
-    ssh(`cd ~/matdeck/server && PATH=$HOME/node/bin:$PATH PORT=${REMOTE_PORT} MATDECK_TRAY=0 MATDECK_ELGATO=0 MATDECK_HELPER_SOCKET=/tmp/mdh-vm.sock MATDECK_HELPER_APP="$HOME/matdeck/macos/MatDeckHelper/dist/MatDeck Helper.app" nohup node src/index.js > /tmp/matdeck-vm.log 2>&1 &
+    ssh(`cd ~/matdeck/server && PATH=$HOME/node/bin:$PATH PORT=${REMOTE_PORT} MATDECK_TRAY=0 MATDECK_ELGATO=0 MATDECK_CLAUDE_STATE_DIR=/tmp/mdh-vm-claude-sessions MATDECK_CLAUDE_HOOK_DIR=/tmp/mdh-vm-claude-hook MATDECK_HELPER_SOCKET=/tmp/mdh-vm.sock MATDECK_HELPER_APP="$HOME/matdeck/macos/MatDeckHelper/dist/MatDeck Helper.app" nohup node src/index.js > /tmp/matdeck-vm.log 2>&1 &
 sleep 4; tail -5 /tmp/matdeck-vm.log`);
     const tunnel = spawn('ssh', ['-N', '-L', `${LOCAL_PORT}:127.0.0.1:${REMOTE_PORT}`, HOST], { stdio: 'ignore' });
     try {

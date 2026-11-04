@@ -573,6 +573,42 @@
                     </section>
 
                     <section class="settings-section">
+                        <h3>Claude Code</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-claude-dir">Pasta das sessões <span class="label-opt">(opcional)</span></label>
+                                <input type="text" id="cfg-claude-dir" class="form-input mono" data-path="claude.sessionsDir" placeholder="~/.local/state/matdeck/claude-sessions" autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-claude-slots">Vagas de terminal (teclas)</label>
+                                <input type="number" id="cfg-claude-slots" class="form-input" data-path="claude.slots" data-type="number" min="1" max="12" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-claude-working">"Trabalhando" sem sinal vira livre após (min)</label>
+                                <input type="number" id="cfg-claude-working" class="form-input" data-path="claude.workingMinutes" data-type="number" min="1" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-claude-done">"Pronto" vira livre após (min)</label>
+                                <input type="number" id="cfg-claude-done" class="form-input" data-path="claude.doneMinutes" data-type="number" min="1" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-claude-waiting">"Precisa de você" vira livre após (min)</label>
+                                <input type="number" id="cfg-claude-waiting" class="form-input" data-path="claude.waitingMinutes" data-type="number" min="1" inputmode="numeric">
+                            </div>
+                            <div class="control-group">
+                                <label for="cfg-claude-stale">Esquecer sessão sem sinal após (min)</label>
+                                <input type="number" id="cfg-claude-stale" class="form-input" data-path="claude.staleMinutes" data-type="number" min="1" inputmode="numeric">
+                            </div>
+                        </div>
+                        <p class="settings-note" id="claude-status" aria-live="polite">Lendo o estado…</p>
+                        <p class="settings-note">As teclas "Claude: terminal N" e "Claude: resumo" mostram os terminais do Claude Code abertos neste PC (nome do projeto, estado e atividade) e um toque leva a janela do terminal para a frente. Para o Claude Code avisar o MatDeck, cole o trecho abaixo em <code>~/.claude/settings.json</code> (junte ao bloco <code>hooks</code> que já existir). O MatDeck mantém a cópia do hook atualizada no caminho indicado. Se você mudar a "Pasta das sessões" (ou usar a variável <code>MATDECK_CLAUDE_STATE_DIR</code>), o trecho passa a levar <code>MATDECK_CLAUDE_STATE_DIR='...'</code> em cada comando, para o hook gravar onde o MatDeck lê: cole o trecho de novo depois de mudar a pasta.</p>
+                        <pre id="claude-hook-snippet" class="form-input mono" style="white-space: pre; overflow-x: auto; max-height: 220px; user-select: all;" tabindex="0">Carregando…</pre>
+                        <div class="control-group">
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-claude-copy" disabled>Copiar</button>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
                         <h3>Ventoinhas (CoolerControl)</h3>
                         <div class="settings-row">
                             <div class="control-group">

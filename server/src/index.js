@@ -25,6 +25,7 @@ const MediaPlayerActions = require('./actions/mediaPlayerActions');
 const FanControl = require('./fanControl');
 const AiUsage = require('./aiUsage');
 const DataAssistant = require('./dataAssistant');
+const ClaudeSessions = require('./claudeSessions');
 const DefaultProfile = require('./profiles/default');
 const MoreProfile = require('./profiles/more');
 
@@ -110,6 +111,7 @@ class MatDeckServer {
         this.aiUsage = new AiUsage(this.config);
         this.discordRpc = new DiscordRpc(this.config);
         this.dataAssistant = new DataAssistant(this.config);
+        this.claudeSessions = new ClaudeSessions(this.config, { focus: (target) => this.platform.windows.focus(target), port: HTTP_PORT });
 
         this.profiles = new Map();
         this.profiles.set('obs', new OBSProfile(this));
@@ -157,6 +159,7 @@ class MatDeckServer {
         this.setupFanTelemetry();
         this.setupAiTelemetry();
         this.setupDataTelemetry();
+        this.setupClaudeTelemetry();
         this.setupDiscordRpc();
         this.setupUdpDiscovery();
         this.setupShutdown();
@@ -449,7 +452,8 @@ class MatDeckServer {
                 profileList: this.getProfileList(true),
                 audioApps: this.audioMixer.getAll(),
                 apps,
-                plugins: this.installedPlugins
+                plugins: this.installedPlugins,
+                claudeSlots: this.claudeSessions.snapshot().slots
             }));
         });
 
@@ -486,6 +490,15 @@ class MatDeckServer {
 
         // Data (assistente de voz): estado atual visto pelo coletor
         this.app.get('/api/data', (req, res) => res.json(this.dataAssistant.snapshot()));
+
+        // Claude Code (terminais): estado visto pelo coletor; refresh (o hook avisa por aqui) só da própria máquina
+        this.app.get('/api/claude', (req, res) => res.json(this.claudeSessions.snapshot()));
+        this.app.post('/api/claude/refresh', (req, res) => {
+            const ip = (req.socket.remoteAddress || '').replace('::ffff:', '');
+            if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) return res.status(403).json({ error: 'Só a partir desta máquina' });
+            this.claudeSessions.refreshNow().catch(() => {});
+            res.json({ success: true });
+        });
 
         // Ventoinhas (CoolerControl)
         this.app.get('/api/fans', (req, res) => res.json(this.fanControl.state()));
@@ -905,7 +918,7 @@ class MatDeckServer {
         const viewers = this.clients.size > 0;
         if (viewers === this.hasViewers) return;
         this.hasViewers = viewers;
-        for (const m of [this.hardwareMonitor, this.fanControl, this.spotify, this.mediaPlayers]) {
+        for (const m of [this.hardwareMonitor, this.fanControl, this.spotify, this.mediaPlayers, this.claudeSessions]) {
             if (m && typeof m.setActive === 'function') { try { m.setActive(viewers); } catch (e) { console.warn('[MatDeck] Falha ao mudar o modo de coleta:', e.message); } }
         }
         console.log(`[MatDeck] ${viewers ? 'Cliente conectado: coleta em tempo real' : 'Sem clientes: coleta em modo econômico'}`);
@@ -1077,6 +1090,10 @@ class MatDeckServer {
                 // Data (assistente de voz): push-to-talk, calar e escuta livre
                 const result = this.dataAssistant.handleAction(actionId, eventType);
                 if (result && typeof result.catch === 'function') result.catch(e => console.warn(`[Data] Falha em ${actionId}: ${e.message}`));
+            } else if (prefix === 'claude') {
+                // Claude Code: toque foca a janela do terminal da vaga (ou de quem precisa de você, no resumo)
+                const result = this.claudeSessions.handleAction(actionId, eventType);
+                if (result && typeof result.catch === 'function') result.catch(e => console.warn(`[Claude] Falha em ${actionId}: ${e.message}`));
             } else if (prefix === 'player') {
                 const result = this.mediaActions.handleAction(actionId, eventType);
                 if (result && typeof result.catch === 'function') result.catch(e => console.error(`[Deck] Erro em ${actionId}:`, e.message));
@@ -1115,6 +1132,7 @@ class MatDeckServer {
         if (changed && this.spotifyLastSent) this.spotifyLastSent.clear(); // o cache vale só para a tela atual
         if (changed && this.playerLastSent) this.playerLastSent.clear();
         if (changed && this.dataLastSent) this.dataLastSent.clear();
+        if (changed && this.claudeLastSent) this.claudeLastSent.clear();
         this.currentProfileId = profileId;
         if (changed) console.log(`[MatDeck] Perfil alterado para: ${profileId}`);
         this.elgatoBridge.setVisibleProfile(profileId);
@@ -1159,7 +1177,13 @@ class MatDeckServer {
 
     /** Ações cujo título É o conteúdo (deve ser espelhado mesmo quando a tecla do hub tem título próprio). */
     static get TITLE_IS_CONTENT() {
-        return new Set(['ts:talking', 'ts:status', 'spotify:now_playing', 'player:now_playing', 'player:panel']);
+        return new Set(['ts:talking', 'ts:status', 'spotify:now_playing', 'player:now_playing', 'player:panel', 'claude:summary']);
+    }
+
+    /** O título dessa ação é o conteúdo (conjunto acima, mais todas as vagas claude:slot:N, cujo título é o nome do projeto). */
+    static titleIsContent(actionId) {
+        const id = String(actionId);
+        return MatDeckServer.TITLE_IS_CONTENT.has(id) || id.startsWith('claude:slot:');
     }
 
     /** Campos que descrevem o ESTADO visual de uma ação (espelhados entre perfis que usam a mesma ação). */
@@ -1228,6 +1252,12 @@ class MatDeckServer {
                 if (st) { touched = true; return { ...key, ...st }; }
                 return key;
             }
+            if (key.actionId.startsWith('claude:')) {
+                // Claude Code: a tecla já abre com as sessões atuais
+                const st = MatDeckServer.mergeLiveState(this.claudeSessions.stateFor(key.actionId), key, true);
+                if (st) { touched = true; return { ...key, ...st }; }
+                return key;
+            }
             if (key.actionId.startsWith('stats:')) {
                 // Telemetria já com valores atuais (sem esperar o próximo tick)
                 const upd = this.statUpdateFor(key.actionId, this.hardwareMonitor.currentStats);
@@ -1242,7 +1272,7 @@ class MatDeckServer {
                         const st = this.getActionState(key.actionId);
                         if (st) {
                             touched = true;
-                            if (key.title && !MatDeckServer.TITLE_IS_CONTENT.has(key.actionId)) delete st.title;
+                            if (key.title && !MatDeckServer.titleIsContent(key.actionId)) delete st.title;
                             return { ...key, ...st };
                         }
                     }
@@ -1323,7 +1353,7 @@ class MatDeckServer {
         for (const key of currentDef.keys) {
             if (key.actionId !== ownerKey.actionId) continue;
             const payload = { ...mirrored };
-            if (key.title && !MatDeckServer.TITLE_IS_CONTENT.has(key.actionId)) delete payload.title;
+            if (key.title && !MatDeckServer.titleIsContent(key.actionId)) delete payload.title;
             if (Object.keys(payload).length) {
                 this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: payload });
             }
@@ -1457,7 +1487,7 @@ class MatDeckServer {
         if (!st) return null;
         const out = {};
         for (const f of Object.keys(st)) out[f] = st[f] === undefined ? (key[f] !== undefined ? key[f] : null) : st[f];
-        if (keepUserTitle && key.title && !MatDeckServer.TITLE_IS_CONTENT.has(key.actionId)) delete out.title;
+        if (keepUserTitle && key.title && !MatDeckServer.titleIsContent(key.actionId)) delete out.title;
         return out;
     }
 
@@ -1590,6 +1620,35 @@ class MatDeckServer {
             const cacheKey = `${this.currentProfileId}|${key.index}`;
             if (this.dataLastSent.get(cacheKey) === sig) continue;
             this.dataLastSent.set(cacheKey, sig);
+            this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: st });
+        }
+    }
+
+    /** Teclas `claude:*` da tela atual acompanham as sessões do Claude Code (só o que mudou é enviado). */
+    setupClaudeTelemetry() {
+        this.claudeLastSent = new Map();
+        this.claudeSessions.on('change', () => this.pushClaudeKeys());
+        this.config.on('change', ({ section }) => {
+            if (section !== 'claude') return;
+            this.claudeSessions.reconnect();
+            // Mudar as vagas muda a aparência das teclas sem o coletor emitir `change`
+            this.claudeLastSent.clear();
+            this.pushClaudeKeys();
+        });
+        this.claudeSessions.start();
+    }
+
+    pushClaudeKeys() {
+        const currentDef = this.getProfileDefinition(this.currentProfileId);
+        if (!currentDef || !currentDef.keys) return;
+        for (const key of currentDef.keys) {
+            if (!key.actionId || !key.actionId.startsWith('claude:')) continue;
+            const st = MatDeckServer.mergeLiveState(this.claudeSessions.stateFor(key.actionId), key, true);
+            if (!st) continue;
+            const sig = JSON.stringify(st);
+            const cacheKey = `${this.currentProfileId}|${key.index}`;
+            if (this.claudeLastSent.get(cacheKey) === sig) continue;
+            this.claudeLastSent.set(cacheKey, sig);
             this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: st });
         }
     }
@@ -1757,6 +1816,7 @@ class MatDeckServer {
             this.fanControl.stop();
             this.aiUsage.stop();
             this.dataAssistant.stop();
+            this.claudeSessions.stop();
             this.windowDetector.stop();
             for (const p of this.profiles.values()) { if (typeof p.stop === 'function') { try { p.stop(); } catch (e) {} } }
             for (const ws of this.clients) { try { ws.close(); } catch (e) {} }
@@ -1771,4 +1831,6 @@ class MatDeckServer {
     }
 }
 
-new MatDeckServer();
+// Como script sobe o servidor; como módulo (testes) só exporta a classe
+if (require.main === module) new MatDeckServer();
+module.exports = MatDeckServer;
