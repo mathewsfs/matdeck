@@ -360,6 +360,7 @@ class SystemActions {
 
     /**
      * Foca uma janela cuja classe contenha um dos classHints ou cujo título contenha um dos titleHints.
+     * Com `pids`, a janela cujo processo (w.pid) bate com um deles tem prioridade sobre os hints.
      * Ordem: kdotool -> script KWin via D-Bus -> xdotool. Resolve true se algo foi ativado.
      */
     static async focusWindow(target = {}) {
@@ -367,27 +368,29 @@ class SystemActions {
         const titleHints = (target.titleHints || []).map((h) => String(h).toLowerCase()).filter(Boolean);
         // requireTitle: o título precisa casar (classHints só desempatam); evita focar outra aba/janela do navegador
         const requireTitle = !!target.requireTitle && titleHints.length > 0;
-        if (!classHints.length && !titleHints.length) return false;
+        const pids = (target.pids || []).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+        if (!classHints.length && !titleHints.length && !pids.length) return false;
 
         if (os.platform() !== 'linux') {
             console.log('[SystemActions] focusWindow só está implementado no Linux');
             return false;
         }
 
-        if (this.hasKdotool()) {
+        // kdotool não busca por pid: sem hints não há o que procurar nele
+        if (this.hasKdotool() && (classHints.length || titleHints.length)) {
             if (await this.focusWithKdotool(classHints, titleHints, requireTitle)) return true;
         }
 
         const caps = this.capabilities();
         if (caps.qdbus && /kde|plasma/i.test(caps.desktop)) {
-            if (await this.focusWithKwinScript(classHints, titleHints, requireTitle)) return true;
+            if (await this.focusWithKwinScript(classHints, titleHints, requireTitle, pids)) return true;
         }
 
         if (this.xdotoolUsable()) {
-            if (await this.focusWithXdotool(classHints, titleHints, requireTitle)) return true;
+            if (await this.focusWithXdotool(classHints, titleHints, requireTitle, pids)) return true;
         }
 
-        console.log(`[SystemActions] Nenhuma janela encontrada para class=[${classHints}] title=[${titleHints}]${requireTitle ? ' (título obrigatório)' : ''}`);
+        console.log(`[SystemActions] Nenhuma janela encontrada para class=[${classHints}] title=[${titleHints}] pids=[${pids}]${requireTitle ? ' (título obrigatório)' : ''}`);
         return false;
     }
 
@@ -415,11 +418,12 @@ class SystemActions {
      * registra um "marcador" (loadScript com pluginName único, apontando para este mesmo arquivo) e
      * o Node confere com isScriptLoaded(marcador).
      */
-    static buildKwinFocusScript(classHints, titleHints, scriptPath, markerName, requireTitle) {
+    static buildKwinFocusScript(classHints, titleHints, scriptPath, markerName, requireTitle, pids = []) {
         return `(function () {
     var classHints = ${JSON.stringify(classHints)};
     var titleHints = ${JSON.stringify(titleHints)};
     var requireTitle = ${requireTitle ? 'true' : 'false'};
+    var pids = ${JSON.stringify(pids)};
     var scriptPath = ${JSON.stringify(scriptPath)};
     var markerName = ${JSON.stringify(markerName)};
     var list = (typeof workspace.windowList === 'function') ? workspace.windowList() : workspace.clientList();
@@ -442,6 +446,13 @@ class SystemActions {
         if ('activeWindow' in workspace) workspace.activeWindow = w; else workspace.activeClient = w;
         callDBus('org.kde.KWin', '/Scripting', 'org.kde.kwin.Scripting', 'loadScript', scriptPath, markerName);
     }
+    // Por pid primeiro (ordem de pids, depois ordem da lista); só se nenhuma casar vale título/classe
+    for (var k = 0; k < pids.length; k++) {
+        for (var j = 0; j < list.length; j++) {
+            var w = list[j];
+            if (usable(w, false) && Number(w.pid) === pids[k]) { activate(w); return; }
+        }
+    }
     var tiers = [
         function (w) { return matchTitle(w) && (classHints.length === 0 || matchClass(w)); },
         function (w) { return matchTitle(w); }
@@ -460,7 +471,7 @@ class SystemActions {
 `;
     }
 
-    static async focusWithKwinScript(classHints, titleHints, requireTitle) {
+    static async focusWithKwinScript(classHints, titleHints, requireTitle, pids = []) {
         const caps = this.capabilities();
         const qdbus = caps.qdbus;
         if (!qdbus) return false;
@@ -471,7 +482,7 @@ class SystemActions {
         const scriptPath = path.join(hostVisibleTmpDir(), `${pluginName}.js`);
 
         try {
-            fs.writeFileSync(scriptPath, this.buildKwinFocusScript(classHints, titleHints, scriptPath, markerName, requireTitle), { mode: 0o600 });
+            fs.writeFileSync(scriptPath, this.buildKwinFocusScript(classHints, titleHints, scriptPath, markerName, requireTitle, pids), { mode: 0o600 });
         } catch (e) {
             console.log(`[SystemActions] Não foi possível escrever script KWin: ${e.message}`);
             return false;
@@ -520,13 +531,14 @@ class SystemActions {
         }
     }
 
-    static async focusWithXdotool(classHints, titleHints, requireTitle) {
+    static async focusWithXdotool(classHints, titleHints, requireTitle, pids = []) {
         const searches = [
+            ...pids.map((p) => ['--pid', String(p)]),
             ...titleHints.map((h) => ['--name', h]),
             ...(requireTitle ? [] : classHints.map((h) => ['--class', h]))
         ];
         for (const [flag, hint] of searches) {
-            const res = await run('xdotool', ['search', flag, escapeRegex(hint)], { timeout: 3000 });
+            const res = await run('xdotool', ['search', flag, flag === '--pid' ? hint : escapeRegex(hint)], { timeout: 3000 });
             if (xdotoolCrashed(`xdotool search ${flag} ${hint}`, res)) return false;
             if (!res.ok) continue;
             const ids = res.stdout.split('\n').map((s) => s.trim()).filter(Boolean);
