@@ -6,6 +6,14 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 ## [Não lançado]
 
 ### Adicionado
+- Grupo **Claude Code**, com os terminais do Claude Code abertos no PC: **Claude: terminal N** (uma tecla por
+  vaga, 4 por padrão e até 12) mostra o projeto, o estado (PRECISA/TRAB./PRONTO/LIVRE), a atividade e o tempo,
+  em vermelho pulsando quando o terminal precisa de você, e um toque foca a janela daquele terminal (no Maestri,
+  a janela do Maestri); **Claude: resumo** conta os terminais por estado. O estado vem do hook
+  `scripts/claude-code-hook.py`, que o servidor mantém copiado em `~/.local/state/matdeck/claude-code-hook.py`
+  (visível ao host mesmo no Flatpak). Em Ajustes → Claude Code: pasta, vagas, prazos (`claude.*`) e o trecho
+  do `settings.json` com botão "Copiar". Rotas `GET /api/claude` e `POST /api/claude/refresh`. Módulo:
+  `src/claudeSessions.js`.
 - Grupo **Data (assistente de voz)**, para o assistente de voz local (API em `http://127.0.0.1:8765`):
   **Data: falar** (toque alterna a escuta, segurar interrompe; selo PRONTA/OUVINDO/TRANSCREVENDO/PENSANDO/
   FALANDO/OFF com cores e pulso enquanto ouve), **Data: parar**, **Data: escuta livre** (ON/OFF) e

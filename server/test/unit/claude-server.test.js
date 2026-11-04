@@ -59,6 +59,16 @@ fs.mkdirSync(stateDir, { recursive: true });
     const cg = actions.groups.find((x) => x.id === 'claude');
     check('/api/actions traz o grupo claude com as vagas da configuração', !!cg && cg.actions.length === 5, cg && cg.actions.map((a) => a.id));
 
+    // --- Ajustes e documentação
+    const root = path.join(__dirname, '..', '..', '..');
+    const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
+    const html = read('server/web/manage.html');
+    check('manage.html tem os campos claude.*', ['claude.sessionsDir', 'claude.slots', 'claude.workingMinutes', 'claude.doneMinutes', 'claude.waitingMinutes', 'claude.staleMinutes'].every((p) => html.includes(`data-path="${p}"`)));
+    check('manage.html tem o trecho do hook e a linha de estado', html.includes('id="claude-hook-snippet"') && html.includes('id="claude-status"'));
+    check('snapshot traz hookPath absoluto da cópia instalada', path.isAbsolute(info.hookPath) && info.hookPath.endsWith('claude-code-hook.py') && fs.existsSync(info.hookPath), info.hookPath);
+    check('README documenta o hook', read('README.md').includes('claude-code-hook.py'));
+    check('CHANGELOG cita o grupo e o hook', read('CHANGELOG.md').includes('claude-code-hook.py') && read('CHANGELOG.md').includes('Grupo **Claude Code**'));
+
     // --- tela com teclas claude:* e um deck conectado
     const preset = { name: 'Claude teste', rows: 3, cols: 5, keys: [
         { index: 0, actionId: 'claude:slot:1', title: 'Meu título' },

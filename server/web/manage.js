@@ -2245,6 +2245,44 @@ function computeConfigDiff() {
     }
     return changed ? diff : null;
 }
+const CLAUDE_HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'Notification', 'SessionEnd'];
+function claudeHookSnippet(hookPath) {
+    const quoted = `'${String(hookPath).replace(/'/g, `'\\''`)}'`;
+    const hooks = {};
+    for (const ev of CLAUDE_HOOK_EVENTS) hooks[ev] = [{ hooks: [{ type: 'command', command: `python3 -I ${quoted} ${ev}` }] }];
+    return JSON.stringify({ hooks }, null, 2);
+}
+async function loadClaudeInfo() {
+    const snippetEl = document.getElementById('claude-hook-snippet');
+    const statusEl = document.getElementById('claude-status');
+    if (!snippetEl || !statusEl) return;
+    const res = await apiFetch('/api/claude');
+    if (!res.ok || !res.data) {
+        statusEl.textContent = 'servidor fora do ar';
+        snippetEl.textContent = 'Não foi possível obter o caminho do hook.';
+        return;
+    }
+    const info = res.data;
+    if (info.dirExists) {
+        const n = info.total || 0;
+        const ago = info.lastRead ? Math.max(0, Math.round(Date.now() / 1000 - info.lastRead)) : null;
+        statusEl.textContent = `${n} ${n === 1 ? 'sessão' : 'sessões'}${ago === null ? '' : ` · última leitura há ${ago}s`}`;
+    } else {
+        statusEl.textContent = 'pasta não existe: instale o hook';
+    }
+    snippetEl.textContent = info.hookPath ? claudeHookSnippet(info.hookPath) : 'O servidor ainda não instalou o hook.';
+}
+async function copyClaudeSnippet() {
+    const text = document.getElementById('claude-hook-snippet').textContent;
+    try {
+        await navigator.clipboard.writeText(text);
+        toast('Trecho copiado');
+    } catch (e) {
+        toast('Não foi possível copiar sozinho: selecione o trecho e copie com Ctrl+C', { type: 'error' });
+    }
+}
+document.getElementById('btn-claude-copy').addEventListener('click', copyClaudeSnippet);
+
 function validateConfigFields() {
     let firstInvalid = null;
     for (const el of configFields()) {
@@ -2255,6 +2293,13 @@ function validateConfigFields() {
         }
         if (el.dataset.path === 'obs.url' && el.value && !/^wss?:\/\/.+/i.test(el.value.trim())) error = 'O endereço deve começar com ws:// ou wss://.';
         if (el.dataset.path === 'data.url' && el.value && !/^https?:\/\/.+/i.test(el.value.trim())) error = 'O endereço deve começar com http:// ou https://.';
+        if (el.dataset.path === 'claude.slots' && el.value !== '') {
+            const n = parseInt(el.value, 10);
+            if (Number.isNaN(n) || n < 1 || n > 12) error = 'Informe um número entre 1 e 12.';
+        } else if (/^claude\.(working|done|waiting|stale)Minutes$/.test(el.dataset.path) && el.value !== '') {
+            const n = parseInt(el.value, 10);
+            if (Number.isNaN(n) || n < 1) error = 'Informe um número de minutos maior ou igual a 1.';
+        }
         const group = el.closest('.control-group');
         let errEl = group && group.querySelector('.field-error');
         if (error) {
@@ -2307,7 +2352,7 @@ async function openSettings() {
     settingsModal.classList.add('active');
     settingsModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    const [res, autoRes] = await Promise.all([apiFetch('/api/config'), apiFetch('/api/autodetect'), loadDevices()]);
+    const [res, autoRes] = await Promise.all([apiFetch('/api/config'), apiFetch('/api/autodetect'), loadDevices(), loadClaudeInfo()]);
     setHidden(settingsLoading, true);
     if (!res.ok || !res.data || typeof res.data !== 'object') {
         settingsError.textContent = 'Não foi possível carregar as configurações. Verifique se o servidor está em execução.';
