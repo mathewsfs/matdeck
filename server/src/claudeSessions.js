@@ -14,6 +14,11 @@
  * Variáveis de ambiente: MATDECK_CLAUDE_STATE_DIR (pasta das sessões, vence a config) e MATDECK_CLAUDE_HOOK_DIR
  * (pasta onde o hook é instalado, em vez de ~/.local/state/matdeck; usada pelos testes).
  *
+ * Diferença de propósito em relação ao relógio: não lê o transcript para detectar `was_interrupted` nem o `session_name` do
+ * TranscriptIndex. Sem isso, negar uma permissão ou apertar Esc (que não dispara `Stop`) deixa a tecla em "waiting" até
+ * waitingMinutes (120) ou em "working" até workingMinutes (15) ou o próximo prompt; terminal fechado sem `SessionEnd` fica "done"
+ * até staleMinutes.
+ *
  * Foco (handleAction): primeiro só pelos PIDs da cadeia do terminal; se falhar, pela classe da janela (term_program).
  * Com o kdotool instalado as dicas de classe são buscadas antes dos PIDs e poderiam focar outro Konsole/Maestri.
  */
@@ -326,6 +331,7 @@ class ClaudeSessions extends EventEmitter {
         const s = this.summary;
         return JSON.parse(JSON.stringify({
             dir,
+            defaultDir: expandHome(DEFAULT_DIR),
             dirExists: this.dirExists,
             lastRead: this.lastRead,
             slots,

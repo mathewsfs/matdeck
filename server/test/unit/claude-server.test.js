@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const vm = require('vm');
 const WebSocket = require('ws');
 const fakeHelper = require('../fake-helper');
 
@@ -68,6 +69,53 @@ fs.mkdirSync(stateDir, { recursive: true });
     check('snapshot traz hookPath absoluto da cópia instalada', path.isAbsolute(info.hookPath) && info.hookPath.endsWith('claude-code-hook.py') && fs.existsSync(info.hookPath), info.hookPath);
     check('README documenta o hook', read('README.md').includes('claude-code-hook.py'));
     check('CHANGELOG cita o grupo e o hook', read('CHANGELOG.md').includes('claude-code-hook.py') && read('CHANGELOG.md').includes('Grupo **Claude Code**'));
+
+    // --- trecho do hook em Ajustes (manage.js, extraído e executado com um DOM falso)
+    check('snapshot traz defaultDir (pasta padrão, absoluta)', typeof info.defaultDir === 'string' && path.isAbsolute(info.defaultDir) && info.defaultDir.endsWith(path.join('.local', 'state', 'matdeck', 'claude-sessions')), info.defaultDir);
+    const manageSrc = read('server/web/manage.js');
+    const from = manageSrc.indexOf('const CLAUDE_HOOK_EVENTS');
+    const to = manageSrc.indexOf("document.getElementById('btn-claude-copy').addEventListener");
+    check('manage.js: bloco do trecho do hook localizado', from >= 0 && to > from);
+    const makeCtx = (apiData) => {
+        const els = { 'claude-hook-snippet': { textContent: 'Carregando…', disabled: false }, 'claude-status': { textContent: '' }, 'btn-claude-copy': { disabled: false } };
+        const copied = [];
+        const ctx = vm.createContext({
+            document: { getElementById: (id) => els[id] || null },
+            apiFetch: async () => apiData,
+            navigator: { clipboard: { writeText: async (t) => { copied.push(t); } } },
+            toast: () => {}, Date, Math, JSON, String
+        });
+        vm.runInContext(manageSrc.slice(from, to), ctx);
+        return { ctx, els, copied };
+    };
+    const def = '/home/u/.local/state/matdeck/claude-sessions';
+    const hookP = "/home/u/.local/state/matdeck/claude-code-hook.py";
+    const snip = (hp, dir, defaultDir) => { const c = makeCtx({ ok: true, data: {} }); return vm.runInContext('claudeHookSnippet', c.ctx)(hp, dir, defaultDir); };
+    const cmds = (text) => Object.values(JSON.parse(text).hooks).map((h) => h[0].hooks[0].command);
+    check('trecho sem pasta personalizada: sem prefixo MATDECK_CLAUDE_STATE_DIR', cmds(snip(hookP, def, def)).every((c) => c.startsWith("python3 -I ") && !c.includes('MATDECK_CLAUDE_STATE_DIR')), cmds(snip(hookP, def, def))[0]);
+    check('trecho sem dir/defaultDir (servidor antigo): sem prefixo', cmds(snip(hookP, undefined, undefined)).every((c) => !c.includes('MATDECK_CLAUDE_STATE_DIR')));
+    const custom = cmds(snip(hookP, "/data/o'brien/sessões", def));
+    check('trecho com pasta personalizada: cada comando leva o prefixo com aspas simples escapadas', custom.length === 7 && custom.every((c) => c.startsWith("MATDECK_CLAUDE_STATE_DIR='/data/o'\\''brien/sessões' python3 -I ")), custom[0]);
+    check('trecho: o evento continua no fim do comando', custom[0].endsWith(' SessionStart') && custom[6].endsWith(' SessionEnd'), custom);
+
+    // botão Copiar: só habilita com um trecho de verdade e copia a variável, nunca o texto do <pre>
+    let c1 = makeCtx({ ok: false, data: null });
+    await vm.runInContext('loadClaudeInfo', c1.ctx)();
+    check('servidor fora do ar: Copiar fica desabilitado', c1.els['btn-claude-copy'].disabled === true, c1.els['btn-claude-copy']);
+    await vm.runInContext('copyClaudeSnippet', c1.ctx)();
+    check('servidor fora do ar: nada é copiado (nem a mensagem de erro)', c1.copied.length === 0, c1.copied);
+    let c2 = makeCtx({ ok: true, data: { dirExists: true, total: 1, hookPath: hookP, dir: def, defaultDir: def } });
+    c2.els['btn-claude-copy'].disabled = true;
+    await vm.runInContext('loadClaudeInfo', c2.ctx)();
+    check('com o caminho do hook: Copiar habilita', c2.els['btn-claude-copy'].disabled === false);
+    c2.els['claude-hook-snippet'].textContent = 'texto qualquer do pre';
+    await vm.runInContext('copyClaudeSnippet', c2.ctx)();
+    check('Copiar copia o trecho guardado, não o texto do <pre>', c2.copied.length === 1 && c2.copied[0] === snip(hookP, def, def), c2.copied);
+    let c3 = makeCtx({ ok: true, data: { dirExists: false } });
+    await vm.runInContext('loadClaudeInfo', c3.ctx)();
+    check('sem hookPath: Copiar fica desabilitado', c3.els['btn-claude-copy'].disabled === true);
+    check('manage.html: Copiar nasce desabilitado', /id="btn-claude-copy"[^>]*\bdisabled\b/.test(html));
+    check('Ajustes e README mencionam MATDECK_CLAUDE_STATE_DIR', html.includes('MATDECK_CLAUDE_STATE_DIR') && read('README.md').includes('MATDECK_CLAUDE_STATE_DIR'));
 
     // --- tela com teclas claude:* e um deck conectado
     const preset = { name: 'Claude teste', rows: 3, cols: 5, keys: [

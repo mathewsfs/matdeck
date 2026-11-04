@@ -2246,16 +2246,23 @@ function computeConfigDiff() {
     return changed ? diff : null;
 }
 const CLAUDE_HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'Notification', 'SessionEnd'];
-function claudeHookSnippet(hookPath) {
-    const quoted = `'${String(hookPath).replace(/'/g, `'\\''`)}'`;
+const shellQuote = (text) => `'${String(text).replace(/'/g, `'\\''`)}'`;
+function claudeHookSnippet(hookPath, dir, defaultDir) {
+    // Pasta das sessões diferente da padrão: o hook (que roda no Claude Code, sem a config do MatDeck) precisa saber qual é
+    const env = dir && defaultDir && dir !== defaultDir ? `MATDECK_CLAUDE_STATE_DIR=${shellQuote(dir)} ` : '';
+    const quoted = shellQuote(hookPath);
     const hooks = {};
-    for (const ev of CLAUDE_HOOK_EVENTS) hooks[ev] = [{ hooks: [{ type: 'command', command: `python3 -I ${quoted} ${ev}` }] }];
+    for (const ev of CLAUDE_HOOK_EVENTS) hooks[ev] = [{ hooks: [{ type: 'command', command: `${env}python3 -I ${quoted} ${ev}` }] }];
     return JSON.stringify({ hooks }, null, 2);
 }
+let claudeSnippetText = '';   // trecho real; vazio enquanto não há (o <pre> pode mostrar "Carregando…" ou um erro)
 async function loadClaudeInfo() {
     const snippetEl = document.getElementById('claude-hook-snippet');
     const statusEl = document.getElementById('claude-status');
+    const copyBtn = document.getElementById('btn-claude-copy');
     if (!snippetEl || !statusEl) return;
+    claudeSnippetText = '';
+    if (copyBtn) copyBtn.disabled = true;
     const res = await apiFetch('/api/claude');
     if (!res.ok || !res.data) {
         statusEl.textContent = 'servidor fora do ar';
@@ -2270,12 +2277,18 @@ async function loadClaudeInfo() {
     } else {
         statusEl.textContent = 'pasta não existe: instale o hook';
     }
-    snippetEl.textContent = info.hookPath ? claudeHookSnippet(info.hookPath) : 'O servidor ainda não instalou o hook.';
+    if (info.hookPath) {
+        claudeSnippetText = claudeHookSnippet(info.hookPath, info.dir, info.defaultDir);
+        snippetEl.textContent = claudeSnippetText;
+        if (copyBtn) copyBtn.disabled = false;
+    } else {
+        snippetEl.textContent = 'O servidor ainda não instalou o hook.';
+    }
 }
 async function copyClaudeSnippet() {
-    const text = document.getElementById('claude-hook-snippet').textContent;
+    if (!claudeSnippetText) return;
     try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(claudeSnippetText);
         toast('Trecho copiado');
     } catch (e) {
         toast('Não foi possível copiar sozinho: selecione o trecho e copie com Ctrl+C', { type: 'error' });
