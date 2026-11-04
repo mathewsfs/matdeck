@@ -113,7 +113,7 @@ def record_for(event, payload, previous, now):
         "ts": now,
         "cwd": payload.get("cwd") or (previous or {}).get("cwd"),
         "transcript_path": payload.get("transcript_path") or (previous or {}).get("transcript_path"),
-        "window": window_info() if event in WINDOW_EVENTS else (previous or {}).get("window"),
+        "window": window_info() if event in WINDOW_EVENTS or not (previous or {}).get("window") else previous["window"],
     })
     if event == "SessionStart":
         for key in CARRY_FIELDS:
@@ -160,10 +160,17 @@ def handle(event, payload, now=None):
     if record is None:
         return False
     os.makedirs(state_dir(), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as handle_:
-        json.dump(record, handle_)
-    os.replace(tmp, path)
+    # nome único por processo: hooks em paralelo da mesma sessão não escrevem no mesmo .tmp
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8") as handle_:
+            json.dump(record, handle_)
+        os.replace(tmp, path)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
     return True
 
 

@@ -100,11 +100,38 @@ const readRecord = (sid = SID) => { try { return JSON.parse(fs.readFileSync(path
     check('Stop mantém a janela', r.rec.window.pids.includes(process.pid), r.rec.window);
     check('não deixa .tmp para trás', fs.readdirSync(dir).every((f) => !f.endsWith('.tmp')), fs.readdirSync(dir));
 
-    // --- evento sem registro anterior que não é SessionStart: window null
+    // --- evento sem registro anterior que não é SessionStart: calcula a janela na hora (a tecla precisa ter o que focar)
     r = await runHook('PreToolUse', { session_id: 'other-1', tool_name: 'Bash', tool_input: { command: 'ls' } });
     const other = readRecord('other-1');
-    check('evento sem registro anterior: window null', other && other.window === null && other.detail === 'ls', other);
+    check('evento sem registro anterior: calcula window.pids', other && other.window && other.window.pids.includes(process.pid) && other.detail === 'ls', other);
     fs.rmSync(path.join(dir, 'other-1.json'), { force: true });
+
+    // --- registro anterior sem window: o PreToolUse calcula a janela de novo
+    fs.writeFileSync(path.join(dir, 'nowin-1.json'), JSON.stringify({ session_id: 'nowin-1', state: 'working', event: 'PreToolUse', ts: 1, cwd: '/tmp/proj', window: null }));
+    r = await runHook('PreToolUse', { session_id: 'nowin-1', tool_name: 'Bash', tool_input: { command: 'ls' } });
+    const healed = readRecord('nowin-1');
+    check('PreToolUse com registro anterior sem window recalcula window.pids', healed && healed.window && Array.isArray(healed.window.pids) && healed.window.pids.includes(process.pid), healed);
+    fs.rmSync(path.join(dir, 'nowin-1.json'), { force: true });
+
+    // --- hooks em paralelo para a mesma sessão: o arquivo nunca fica corrompido nem sobra .tmp
+    let corrupt = 0; let leftovers = 0; let badExit = 0;
+    await exec(['SessionStart'], JSON.stringify({ session_id: 'par-1', cwd: '/tmp/proj' }), { MATDECK_PORT: String(port) });
+    for (let round = 0; round < 60; round++) {
+        const results = await Promise.all([1, 2, 3, 4].map((n) => exec(['PreToolUse'], JSON.stringify({ session_id: 'par-1', cwd: '/tmp/proj', tool_name: 'Bash', tool_input: { command: 'echo ' + n } }), { MATDECK_PORT: String(port) })));
+        badExit += results.filter((x) => x.status !== 0).length;
+        try { JSON.parse(fs.readFileSync(path.join(dir, 'par-1.json'), 'utf8')); } catch (e) { corrupt++; }
+        leftovers += fs.readdirSync(dir).filter((f) => f.endsWith('.tmp')).length;
+    }
+    check('60 rodadas de 4 PreToolUse em paralelo: arquivo sempre JSON válido', corrupt === 0, corrupt);
+    check('hooks em paralelo não deixam .tmp para trás', leftovers === 0, leftovers);
+    check('hooks em paralelo saem com 0', badExit === 0, badExit);
+    fs.rmSync(path.join(dir, 'par-1.json'), { force: true });
+    // determinístico: o nome do .tmp não é fixo (um "<arquivo>.tmp" já existente não atrapalha a gravação)
+    fs.mkdirSync(path.join(dir, 'par-2.json.tmp'));
+    await exec(['SessionStart'], JSON.stringify({ session_id: 'par-2', cwd: '/tmp/proj' }), { MATDECK_PORT: String(port) });
+    check('gravação não usa o nome fixo "<arquivo>.tmp"', readRecord('par-2') !== null, readRecord('par-2'));
+    fs.rmSync(path.join(dir, 'par-2.json.tmp'), { recursive: true, force: true });
+    fs.rmSync(path.join(dir, 'par-2.json'), { force: true });
 
     // --- SessionEnd
     r = await runHook('SessionEnd', {});
