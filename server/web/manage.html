@@ -562,6 +562,17 @@
                     </section>
 
                     <section class="settings-section">
+                        <h3>Data (assistente de voz)</h3>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-data-url">Endereço do servidor da Data</label>
+                                <input type="url" id="cfg-data-url" class="form-input mono" data-path="data.url" placeholder="http://127.0.0.1:8765" autocomplete="off" spellcheck="false">
+                            </div>
+                        </div>
+                        <p class="settings-note">As teclas "Data: falar", "Data: parar", "Data: escuta livre" e "Data: status" falam com a API HTTP da Data nesse endereço (sem autenticação) e acompanham o estado pelo WebSocket dela. Com a Data fora do ar as teclas ficam cinza (OFF) e o MatDeck reconecta sozinho, sem precisar reiniciar. A variável de ambiente <code>MATDECK_DATA_URL</code> tem precedência sobre este campo.</p>
+                    </section>
+
+                    <section class="settings-section">
                         <h3>Ventoinhas (CoolerControl)</h3>
                         <div class="settings-row">
                             <div class="control-group">

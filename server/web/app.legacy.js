@@ -1539,7 +1539,7 @@ function isKeyMuted(cfg) {
   return cfg.bgColor === '#DC2626' || cfg.badge === 'MUDO' || cfg.badge === 'MUTADO' || cfg.title && cfg.title.toUpperCase().includes('MUTADO');
 }
 function isHoldKey(cfg) {
-  return /^(discord:ptt|ts:ptt|ts:whisper)$/.test(String(cfg && cfg.actionId || ''));
+  return /^(discord:ptt|ts:ptt|ts:whisper|data:talk)$/.test(String(cfg && cfg.actionId || ''));
 }
 function isSliderKey(cfg) {
   return !!(cfg.isSlider || cfg.actionId && (cfg.actionId.startsWith('vol_slider:') || cfg.actionId === 'spotify:mixer'));
@@ -1859,7 +1859,7 @@ function createKeyElement(cfg) {
   var muted = isKeyMuted(cfg);
   var isSlider = isSliderKey(cfg);
   var hasAction = !!(cfg.actionId || cfg.title || isSlider || cfg.imageFill && cfg.icon);
-  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') + (isTallKey(cfg) ? ' key-tall' : '') + (isWideKey(cfg) ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
+  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (cfg.pulse ? ' key-pulse' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (hasAction ? '' : ' key-empty') + (isTallKey(cfg) ? ' key-tall' : '') + (isWideKey(cfg) ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '');
   el.id = "deck-key-".concat(cfg.index);
   el.setAttribute('role', isSlider ? 'slider' : 'button');
   el.tabIndex = 0;
@@ -2243,7 +2243,7 @@ function updateSingleKeyUI(index) {
   var isSlider = isSliderKey(cfg);
   var pressed = el.classList.contains('is-pressed');
   var draggingNow = el.classList.contains('is-dragging');
-  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track:not(.key-slider-track-h)') ? ' key-tall' : '') + (el.querySelector('.key-slider-track-h') ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') + (spanOf(cfg).cols > 1 || spanOf(cfg).rows > 1 ? ' key-span' : '');
+  el.className = 'deck-key' + (cfg.active ? ' active-toggle' : '') + (cfg.pulse ? ' key-pulse' : '') + (muted ? ' key-muted' : '') + (isSlider ? ' key-slider' : '') + (pressed ? ' is-pressed' : '') + (draggingNow ? ' is-dragging' : '') + (el.querySelector('.key-slider-track:not(.key-slider-track-h)') ? ' key-tall' : '') + (el.querySelector('.key-slider-track-h') ? ' key-wide' : '') + (cfg.actionId === 'spotify:mixer' ? ' key-mixer' : '') + (cfg.imageFill && cfg.icon ? ' key-image-fill' : '') + (isStatKey(cfg) ? ' key-stat-tile' : '') + (cfg.bgColor && !muted && isDarkColor(cfg.bgColor) ? ' has-dark-bg' : '') + (spanOf(cfg).cols > 1 || spanOf(cfg).rows > 1 ? ' key-span' : '');
   applyKeyAccessibleName(el, cfg);
   if (isStatKey(cfg)) {
     if (!muted) {

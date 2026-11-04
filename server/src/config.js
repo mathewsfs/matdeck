@@ -42,6 +42,9 @@ const DEFAULTS = {
         warnPercent: 70,
         criticalPercent: 90
     },
+    data: {
+        url: 'http://127.0.0.1:8765' // servidor da Data (assistente de voz); MATDECK_DATA_URL tem precedência
+    },
     fans: {
         enabled: true,
         host: '127.0.0.1',

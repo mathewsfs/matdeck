@@ -153,6 +153,15 @@ const STATIC_GROUPS = [
         ]
     },
     {
+        id: 'data', label: 'Data (assistente de voz)', icon: 'data',
+        actions: [
+            { id: 'data:talk', label: 'Data: falar', icon: 'data', hint: 'Toque alterna a escuta (a Data para sozinha no silêncio); segurar a tecla interrompe a fala ou a resposta. O selo mostra PRONTA, OUVINDO (vermelho), TRANSCREVENDO/PENSANDO (âmbar), FALANDO (verde) ou OFF (cinza, servidor fora do ar)' },
+            { id: 'data:stop', label: 'Data: parar', icon: 'data', hint: 'Interrompe a fala ou a resposta em andamento (POST /api/stop)' },
+            { id: 'data:wake', label: 'Data: escuta livre', icon: 'data', hint: 'Liga/desliga a palavra de ativação; o selo mostra ON/OFF. Endereço do servidor em Ajustes → Data' },
+            { id: 'data:status', label: 'Data: status', icon: 'data', kind: 'indicator', hint: 'Estado atual, cérebro (IA), escuta livre e modelo de voz (STT); toque liga/desliga a escuta livre (padrão: 2 colunas)', defaultSpan: { cols: 2, rows: 1 } }
+        ]
+    },
+    {
         id: 'fans', label: 'Ventoinhas (CoolerControl)', icon: 'fan',
         actions: [
             { id: 'vol_slider:fans', label: 'Fader ventoinhas', icon: 'fan', kind: 'slider', hint: 'Todas as ventoinhas na mesma velocidade; toque volta ao automático (curvas do CoolerControl)' },

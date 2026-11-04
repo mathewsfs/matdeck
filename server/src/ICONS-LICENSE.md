@@ -65,6 +65,7 @@ Fonte: https://lucide.dev — pacote `lucide-static@0.468.0`. Traço recolorido 
 - `seek_back` ← `rewind`
 - `playlist` ← `list-music`
 - `fan` ← `fan`
+- `data` ← `circle-dot-dashed`
 - `studio` ← `layout-panel-left`
 - `screenshot` ← `camera`
 - `home` ← `house`

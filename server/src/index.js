@@ -24,6 +24,7 @@ const SpotifyProfile = require('./profiles/spotify');
 const MediaPlayerActions = require('./actions/mediaPlayerActions');
 const FanControl = require('./fanControl');
 const AiUsage = require('./aiUsage');
+const DataAssistant = require('./dataAssistant');
 const DefaultProfile = require('./profiles/default');
 const MoreProfile = require('./profiles/more');
 
@@ -108,6 +109,7 @@ class MatDeckServer {
         this.fanControl = new FanControl(this.config);
         this.aiUsage = new AiUsage(this.config);
         this.discordRpc = new DiscordRpc(this.config);
+        this.dataAssistant = new DataAssistant(this.config);
 
         this.profiles = new Map();
         this.profiles.set('obs', new OBSProfile(this));
@@ -154,6 +156,7 @@ class MatDeckServer {
         this.setupMediaTelemetry();
         this.setupFanTelemetry();
         this.setupAiTelemetry();
+        this.setupDataTelemetry();
         this.setupDiscordRpc();
         this.setupUdpDiscovery();
         this.setupShutdown();
@@ -480,6 +483,9 @@ class MatDeckServer {
         // Consumo de IA (Claude Code / Codex CLI)
         this.app.get('/api/ai', (req, res) => res.json(this.aiUsage.state()));
         this.app.post('/api/ai/refresh', (req, res) => { this.aiUsage.refreshNow(); res.json({ success: true }); });
+
+        // Data (assistente de voz): estado atual visto pelo coletor
+        this.app.get('/api/data', (req, res) => res.json(this.dataAssistant.snapshot()));
 
         // Ventoinhas (CoolerControl)
         this.app.get('/api/fans', (req, res) => res.json(this.fanControl.state()));
@@ -1067,6 +1073,10 @@ class MatDeckServer {
             } else if (prefix === 'ai') {
                 // consumo de IA: toque força atualização
                 if (eventType === 'keyDown') this.aiUsage.refreshNow();
+            } else if (prefix === 'data') {
+                // Data (assistente de voz): push-to-talk, calar e escuta livre
+                const result = this.dataAssistant.handleAction(actionId, eventType);
+                if (result && typeof result.catch === 'function') result.catch(e => console.warn(`[Data] Falha em ${actionId}: ${e.message}`));
             } else if (prefix === 'player') {
                 const result = this.mediaActions.handleAction(actionId, eventType);
                 if (result && typeof result.catch === 'function') result.catch(e => console.error(`[Deck] Erro em ${actionId}:`, e.message));
@@ -1104,6 +1114,7 @@ class MatDeckServer {
         const changed = this.currentProfileId !== profileId;
         if (changed && this.spotifyLastSent) this.spotifyLastSent.clear(); // o cache vale só para a tela atual
         if (changed && this.playerLastSent) this.playerLastSent.clear();
+        if (changed && this.dataLastSent) this.dataLastSent.clear();
         this.currentProfileId = profileId;
         if (changed) console.log(`[MatDeck] Perfil alterado para: ${profileId}`);
         this.elgatoBridge.setVisibleProfile(profileId);
@@ -1208,6 +1219,12 @@ class MatDeckServer {
             }
             if (key.actionId.startsWith('player:')) {
                 const st = MatDeckServer.mergeLiveState(this.mediaActions.stateFor(key.actionId), key, true);
+                if (st) { touched = true; return { ...key, ...st }; }
+                return key;
+            }
+            if (key.actionId.startsWith('data:')) {
+                // Data (assistente de voz): a tecla já abre com o estado atual
+                const st = MatDeckServer.mergeLiveState(this.dataAssistant.stateFor(key.actionId), key, true);
                 if (st) { touched = true; return { ...key, ...st }; }
                 return key;
             }
@@ -1554,6 +1571,29 @@ class MatDeckServer {
         this.aiUsage.start();
     }
 
+    /** Teclas `data:*` da tela atual acompanham a Data (estado pelo WebSocket dela; só o que mudou é enviado). */
+    setupDataTelemetry() {
+        this.dataLastSent = new Map();
+        this.dataAssistant.on('change', () => this.pushDataKeys());
+        this.config.on('change', ({ section }) => { if (section === 'data') this.dataAssistant.reconnect(); });
+        this.dataAssistant.start();
+    }
+
+    pushDataKeys() {
+        const currentDef = this.getProfileDefinition(this.currentProfileId);
+        if (!currentDef || !currentDef.keys) return;
+        for (const key of currentDef.keys) {
+            if (!key.actionId || !key.actionId.startsWith('data:')) continue;
+            const st = MatDeckServer.mergeLiveState(this.dataAssistant.stateFor(key.actionId), key, true);
+            if (!st) continue;
+            const sig = JSON.stringify(st);
+            const cacheKey = `${this.currentProfileId}|${key.index}`;
+            if (this.dataLastSent.get(cacheKey) === sig) continue;
+            this.dataLastSent.set(cacheKey, sig);
+            this.broadcast({ event: 'updateKey', profile: this.currentProfileId, keyIndex: key.index, key: st });
+        }
+    }
+
     setupAudioTelemetry() {
         this.audioMixer.on('volumeChange', ({ appId, volume, muted }) => {
             if (appId === this.mediaActions.audioAppFor(this.mediaPlayers.active)) this.pushPlayerKeys();   // mudo do painel/tecla do player
@@ -1716,6 +1756,7 @@ class MatDeckServer {
             this.mediaPlayers.stop();
             this.fanControl.stop();
             this.aiUsage.stop();
+            this.dataAssistant.stop();
             this.windowDetector.stop();
             for (const p of this.profiles.values()) { if (typeof p.stop === 'function') { try { p.stop(); } catch (e) {} } }
             for (const ws of this.clients) { try { ws.close(); } catch (e) {} }
