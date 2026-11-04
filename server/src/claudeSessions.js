@@ -166,8 +166,8 @@ function aggregate(records, now, ttl = DEFAULT_TTL) {
     // Muda quando o estado geral ou o estado/nome de alguma sessão muda
     summary.key = JSON.stringify([summary.state, summary.sessions.map((s) => [s.name, s.state])]);
     summary.tool_key = JSON.stringify(summary.sessions.map((s) => [s.tool, s.detail]));
-    // Muda quando o texto "há N min" de alguma sessão muda
-    summary.since_key = JSON.stringify(summary.sessions.map((s) => Math.floor(s.since / 60)));
+    // Muda quando o texto do "há quanto tempo" de alguma sessão muda: a cada segundo no primeiro minuto ('12s'), depois a cada minuto
+    summary.since_key = JSON.stringify(summary.sessions.map((s) => (s.since < 60 ? Math.floor(s.since) : 60 * Math.floor(s.since / 60))));
     return summary;
 }
 

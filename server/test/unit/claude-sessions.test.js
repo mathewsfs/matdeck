@@ -138,6 +138,26 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('tick sem virar o minuto não emite', changes.length === 4);
     clock = T;
 
+    // primeiro minuto: o "há quanto tempo" (12s) muda a cada segundo; depois, só a cada minuto
+    const dir2 = path.join(tmp, 'sessions-since');
+    fs.mkdirSync(dir2);
+    const config2 = new ConfigStore(path.join(tmp, 'config-since.json'));
+    config2.set('claude', { sessionsDir: dir2 });
+    let clock2 = T;
+    const cs2 = new ClaudeSessions(config2, { focus, now: () => clock2, hookSource: HOOK_SRC, hookDir: path.join(tmp, 'hook2'), port: 8899 });
+    const changes2 = [];
+    cs2.on('change', () => changes2.push(clock2));
+    fs.writeFileSync(path.join(dir2, 's.json'), JSON.stringify({ session_id: 's', state: 'working', ts: T, turn_started: T, cwd: '/x/since', tool: 'Edit', detail: 'a.js' }));
+    await cs2.refreshNow();
+    changes2.length = 0;
+    const emittedAt = (seconds) => { const before = changes2.length; clock2 = T + seconds; cs2.tick(); return changes2.length > before; };
+    check('since < 60 s: change a cada segundo', [1, 2, 3, 30, 31, 58, 59].every((sec) => emittedAt(sec)), changes2);
+    check('since aos 60 s: change (vira 1m)', emittedAt(60));
+    check('since entre 61 s e 119 s: sem change', [61, 62, 90, 119].every((sec) => !emittedAt(sec)), changes2);
+    check('since aos 120 s: change (vira 2m)', emittedAt(120));
+    check('since em 121 s: sem change', !emittedAt(121));
+    cs2.stop();
+
     // mtime do transcript vira activity (e mantém working vivo)
     write('k.json', { session_id: 'k', state: 'working', ts: T - 3600, cwd: '/x/apk-matdeck', transcript_path: transcript });
     write('w.json', { session_id: 'w', state: 'done', ts: T - 3, cwd: '/x/painel' });
