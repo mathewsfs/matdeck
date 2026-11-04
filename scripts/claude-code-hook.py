@@ -184,7 +184,8 @@ def notify_matdeck():
     """Avisa o servidor que há estado novo. Best effort: qualquer erro é ignorado."""
     try:
         request = urllib.request.Request("http://127.0.0.1:%d/api/claude/refresh" % server_port(), data=b"", method="POST")
-        urllib.request.urlopen(request, timeout=NOTIFY_TIMEOUT).close()
+        # ProxyHandler({}) ignora http_proxy/HTTP_PROXY herdados do Claude Code: o destino é sempre o loopback
+        urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=NOTIFY_TIMEOUT).close()
     except Exception:
         pass
 

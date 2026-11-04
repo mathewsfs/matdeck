@@ -134,6 +134,13 @@ const readRecord = (sid = SID) => { try { return JSON.parse(fs.readFileSync(path
     await runHook('SessionEnd', {});
     check('avisa também em Stop e SessionEnd', refreshCalls === before + 2, { before, refreshCalls });
 
+    // --- proxy no ambiente (herdado do Claude Code) não pode desviar o POST para 127.0.0.1
+    refreshCalls = 0;
+    const deadProxy = 'http://127.0.0.1:' + (port === 9 ? 10 : 9);
+    r = await runHook('SessionStart', {}, { http_proxy: deadProxy, HTTP_PROXY: deadProxy, https_proxy: deadProxy, HTTPS_PROXY: deadProxy, no_proxy: undefined, NO_PROXY: undefined });
+    check('ignora http_proxy/HTTP_PROXY do ambiente ao avisar o servidor local', r.status === 0 && refreshCalls === 1, { status: r.status, refreshCalls });
+    await runHook('SessionEnd', {});
+
     // --- porta fechada: não atrapalha
     const closed = await new Promise((resolve) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); });
     const t0 = Date.now();
