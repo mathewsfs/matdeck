@@ -11,6 +11,9 @@
  * Formato do SCAN_SH: `dir ok|missing`, depois, por arquivo, `== <nome>` e o JSON em uma linha.
  * Cadência: scanActiveMs com viewers conectados, scanIdleMs sem eles; o tick (1 s) só recalcula o "há quanto tempo".
  *
+ * Variáveis de ambiente: MATDECK_CLAUDE_STATE_DIR (pasta das sessões, vence a config) e MATDECK_CLAUDE_HOOK_DIR
+ * (pasta onde o hook é instalado, em vez de ~/.local/state/matdeck; usada pelos testes).
+ *
  * Foco (handleAction): primeiro só pelos PIDs da cadeia do terminal; se falhar, pela classe da janela (term_program).
  * Com o kdotool instalado as dicas de classe são buscadas antes dos PIDs e poderiam focar outro Konsole/Maestri.
  */
@@ -278,7 +281,7 @@ class ClaudeSessions extends EventEmitter {
         this.now = opts.now || (() => Date.now() / 1000);
         this.port = num(opts.port, DEFAULT_PORT);
         this.hookSource = opts.hookSource || path.resolve(__dirname, '../../scripts', HOOK_NAME);
-        this.hookDir = expandHome(opts.hookDir || DEFAULT_HOOK_DIR);
+        this.hookDir = expandHome(opts.hookDir || process.env.MATDECK_CLAUDE_HOOK_DIR || DEFAULT_HOOK_DIR);
         this.scanActiveMs = opts.scanActiveMs || SCAN_ACTIVE_MS;
         this.scanIdleMs = opts.scanIdleMs || SCAN_IDLE_MS;
         this.tickMs = opts.tickMs || TICK_MS;
