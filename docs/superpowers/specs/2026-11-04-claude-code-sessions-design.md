@@ -91,9 +91,10 @@ Registro por sessão:
 ```
 
 - `window.pids`: cadeia de processos pais a partir do pai do hook (o processo `claude`), subindo por
-  `/proc/<pid>/stat` até o PID 1 ou 8 níveis, o que vier primeiro. Gravada só no `SessionStart` e no
-  `UserPromptSubmit` *(decisão minha: a árvore não muda no meio de um turno; evita ler `/proc` a cada
-  ferramenta)*. No macOS, `ps -o ppid=` no lugar de `/proc`.
+  `/proc/<pid>/stat` até o PID 1 ou 8 níveis, o que vier primeiro. Calculada no `SessionStart`, no
+  `UserPromptSubmit` e sempre que o registro anterior não tiver `window` (hook instalado no meio de uma
+  sessão, ou arquivo recriado); nos demais eventos é herdada *(decisão minha: a árvore não muda no meio
+  de um turno; evita ler `/proc` a cada ferramenta)*. No macOS, `ps -o ppid=` no lugar de `/proc`.
 - `term_program`, `maestri_*`: das variáveis de ambiente `TERM_PROGRAM`, `MAESTRI_TERMINAL_ID`,
   `MAESTRI_WORKSPACE_ID`, se existirem.
 - Resumo da ferramenta (`detail`): mesma regra do relógio (descrição ou comando do Bash, nome do
