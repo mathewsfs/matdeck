@@ -64,6 +64,7 @@ fs.mkdirSync(stateDir, { recursive: true });
     const root = path.join(__dirname, '..', '..', '..');
     const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
     const html = read('server/web/manage.html');
+    check('gerenciador trata claude:* como tecla de painel (inspetor mostra Tamanho do texto; prévia com amostra)', /startsWith\('claude:'\)/.test(read('server/web/manage.js')) && /claude:summary' && k\.statRows === undefined/.test(read('server/web/manage.js')));
     check('manage.html tem os campos claude.*', ['claude.sessionsDir', 'claude.slots', 'claude.workingMinutes', 'claude.doneMinutes', 'claude.waitingMinutes', 'claude.staleMinutes'].every((p) => html.includes(`data-path="${p}"`)));
     check('manage.html tem o trecho do hook e a linha de estado', html.includes('id="claude-hook-snippet"') && html.includes('id="claude-status"'));
     check('snapshot traz hookPath absoluto da cópia instalada', path.isAbsolute(info.hookPath) && info.hookPath.endsWith('claude-code-hook.py') && fs.existsSync(info.hookPath), info.hookPath);

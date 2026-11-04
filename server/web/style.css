@@ -598,11 +598,17 @@ body.is-offline .deck-grid {
     min-width: 0;
 }
 
+.key-stat-meters:has(.has-img) .key-stat-meter {
+    flex: 1 1 0;
+    min-height: 0;
+}
+
 .key-stat-meter-img {
     flex: 0 0 auto;
-    height: 2.4em;
+    height: 3.4em;
+    height: clamp(2.4em, 22cqmin, 7em);
     width: auto;
-    max-width: 3.2em;
+    max-width: 4.5em;
     object-fit: contain;
     image-rendering: pixelated;
     image-rendering: -webkit-optimize-contrast;

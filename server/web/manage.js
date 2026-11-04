@@ -1026,7 +1026,7 @@ function coveredIndexes(p = editingProfile()) {
     return covered;
 }
 function isEmptyKey(k) { return !(k.title || k.actionId || k.icon || k.badge); }
-function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing' || k.actionId === 'player:panel' || k.actionId === 'discord:voice_room')); }
+function isStatKey(k) { return !!(k && ((k.actionId && (k.actionId.startsWith('stats:') || k.actionId.startsWith('ai:') || k.actionId.startsWith('claude:'))) || k.statValue !== undefined || k.statBig !== undefined || k.statMode === 'media' || k.statMode === 'meters' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing' || k.actionId === 'player:panel' || k.actionId === 'discord:voice_room')); }
 /** Escapa texto para innerHTML. */
 function escHtml(s) {
     return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1162,6 +1162,9 @@ function buildKeyNode(k, { preview = false } = {}) {
         el.classList.add('is-stat');
         const media = k.statMode === 'media' || k.actionId === 'spotify:now_playing' || k.actionId === 'player:now_playing';
         const ai = !k.statMode && k.actionId && k.actionId.startsWith('ai:');
+        if (!k.statMode && k.actionId === 'claude:summary' && k.statRows === undefined) {
+            k = { ...k, statMode: 'meters', statLabel: k.title || 'Claude: resumo', statHead: '1 precisa · 1 trab.', statRows: [{ k: 'MATdeck', sub: 'Pediu permissão', v: '2m', pct: 100, color: '#F87171' }, { k: 'organizador', sub: 'Editando app.js', v: '<1m', pct: 100, color: '#3B82F6' }, { k: 'smart-clock', sub: 'Pronto', v: '1h05', pct: 60, color: '#16A34A' }] };
+        }
         if (!k.statMode && k.actionId === 'discord:voice_room' && k.statRows === undefined) {
             k = { ...k, statMode: 'meters', statLabel: 'Sala de voz', statHead: '3 na sala', statRows: [{ k: 'Você', sub: 'falando', v: '', pct: 100, color: '#22C55E' }, { k: 'Fulano', sub: '', v: '', pct: 0, color: '#374151' }, { k: 'Beltrano', sub: 'mudo', v: '', pct: 0, color: '#374151' }] };
         }
