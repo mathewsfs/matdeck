@@ -1646,8 +1646,11 @@ function statInnerHtml(cfg, prefix) {
   });
   var html = "<div class=\"".concat(prefix, "-head\"><span class=\"").concat(prefix, "-label\">").concat(escHtml(cfg.statLabel || cfg.title || ''), "</span><span class=\"").concat(prefix, "-headval\">").concat(escHtml(cfg.statHead !== undefined ? cfg.statHead : cfg.statSub || ''), "</span></div>");
   if (mode === 'meters' && Array.isArray(cfg.statRows)) {
+    var meterHtml = function meterHtml(r) {
+      return "<div class=\"".concat(prefix, "-meter-row\"><span class=\"").concat(prefix, "-meter-k\">").concat(escHtml(r.k), "</span><span class=\"").concat(prefix, "-meter-sub\">").concat(escHtml(r.sub || ''), "</span><span class=\"").concat(prefix, "-meter-v\">").concat(escHtml(r.v), "</span></div><div class=\"").concat(prefix, "-bar\"><i style=\"width:").concat(Math.max(0, Math.min(100, Number(r.pct) || 0)), "%;background:").concat(escHtml(r.color || color), "\"></i></div>");
+    };
     html += "<div class=\"".concat(prefix, "-meters\">") + cfg.statRows.map(function (r) {
-      return "<div class=\"".concat(prefix, "-meter\"><div class=\"").concat(prefix, "-meter-row\"><span class=\"").concat(prefix, "-meter-k\">").concat(escHtml(r.k), "</span><span class=\"").concat(prefix, "-meter-sub\">").concat(escHtml(r.sub || ''), "</span><span class=\"").concat(prefix, "-meter-v\">").concat(escHtml(r.v), "</span></div><div class=\"").concat(prefix, "-bar\"><i style=\"width:").concat(Math.max(0, Math.min(100, Number(r.pct) || 0)), "%;background:").concat(escHtml(r.color || color), "\"></i></div></div>");
+      return r.img ? "<div class=\"".concat(prefix, "-meter has-img\"><img class=\"").concat(prefix, "-meter-img\" src=\"").concat(escHtml(r.img), "\" alt=\"\" draggable=\"false\"><div class=\"").concat(prefix, "-meter-body\">").concat(meterHtml(r), "</div></div>") : "<div class=\"".concat(prefix, "-meter\">").concat(meterHtml(r), "</div>");
     }).join('') + '</div>';
     return html;
   }

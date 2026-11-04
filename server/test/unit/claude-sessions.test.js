@@ -202,7 +202,7 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     await cs.scanMascots();
     check('scanMascots lista os GIFs da pasta (sem done.gif)', cs.snapshot().mascots.sort().join() === 'idle,limit,waiting,working', cs.snapshot().mascots);
     await cs.refreshNow();
-    check('mascote segue o estado geral, com versão pelo mtime', new RegExp(`^/api/claude/mascot/${cs.snapshot().state}\\.gif\\?v=\\d+$`).test(cs.stateFor('claude:summary').statMascot), [cs.snapshot().state, cs.stateFor('claude:summary').statMascot]);
+    check('mascotUrl segue o estado geral, com versão pelo mtime', new RegExp(`^/api/claude/mascot/${cs.snapshot().state}\\.gif\\?v=\\d+$`).test(cs.mascotUrl(cs.snapshot().state)), [cs.snapshot().state, cs.mascotUrl(cs.snapshot().state)]);
     check('estado sem GIF (done) cai em idle.gif', cs.mascotUrl('done') === cs.mascotUrl('idle') && /idle\.gif/.test(cs.mascotUrl('done')));
     weekly = 95;
     check('semana ≥ 90% e sessão livre/pronta → limit.gif; trabalhando/esperando não', /limit\.gif/.test(cs.mascotUrl('idle')) && /limit\.gif/.test(cs.mascotUrl('done')) && /working\.gif/.test(cs.mascotUrl('working')));
@@ -211,7 +211,21 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('readMascot devolve os bytes do GIF pelo host', Buffer.isBuffer(bytes) && bytes.toString('binary').endsWith('working') && bytes.slice(0, 6).toString() === 'GIF89a');
     check('readMascot de estado inexistente é null', await cs.readMascot('nada') === null && await cs.readMascot('../x') === null);
     check('mascote entra na chave de change (recompute guarda a URL atual)', (() => { cs.recompute(); return cs.lastKeys[3] === cs.mascotUrl(cs.snapshot().state) && typeof cs.lastKeys[3] === 'string'; })(), cs.lastKeys[3]);
-    config.set('claude', { mascotDir: '' });
+    // modo do mascote: 'rows' (padrão) = um por linha e o do canto só com a lista vazia; 'corner' = só no canto; 'both'
+    const rowsOf = () => cs.stateFor('claude:summary').statRows;
+    check('padrão (rows): cada linha traz img com o GIF do estado da sessão e o canto fica vazio', rowsOf().every((r) => /\/api\/claude\/mascot\/(working|waiting|done|idle|limit)\.gif\?v=\d+$/.test(r.img)) && cs.stateFor('claude:summary').statMascot === null, rowsOf());
+    const stateOfColor = { '#F87171': 'waiting', '#3B82F6': 'working', '#16A34A': 'done', '#6B7280': 'idle' };
+    const expectedGif = (st) => (cs.snapshot().mascots.includes(st) ? st : 'idle') + '.gif';   // sem o GIF do estado cai em idle
+    check('rows: cada linha usa o GIF do próprio estado (ou idle quando não há)', rowsOf().length > 1 && rowsOf().every((r) => r.img.includes('/' + expectedGif(stateOfColor[r.color]))), rowsOf().map((r) => [r.color, r.img]));
+    check('rows com lista vazia: canto mostra o mascote (idle) e a linha "nenhum terminal" não tem img', (() => { const k = ClaudeSessions.keyStateFor('claude:summary', ClaudeSessions.aggregate([], T, cfg), 4, cs.mascotUrl('idle'), (st) => cs.mascotUrl(st), 'rows'); return /idle\.gif/.test(k.statMascot) && !k.statRows[0].img; })());
+    config.set('claude', { mascotMode: 'corner' });
+    cs.reconnect();
+    check('corner: só o canto, linhas sem img', cs.stateFor('claude:summary').statMascot !== null && rowsOf().every((r) => !r.img), rowsOf());
+    config.set('claude', { mascotMode: 'both' });
+    cs.reconnect();
+    check('both: canto e linhas', cs.stateFor('claude:summary').statMascot !== null && rowsOf().every((r) => !!r.img));
+    check('snapshot traz mascotMode', cs.snapshot().mascotMode === 'both');
+    config.set('claude', { mascotDir: '', mascotMode: 'rows' });
     cs.reconnect();
 
     // mtime do transcript vira activity (e mantém working vivo)
@@ -336,6 +350,7 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('deck trata claude:summary como tecla de telemetria', isStatKey({ actionId: 'claude:summary' }) === true);
     check('deck desenha o mascote (statMascot) numa <img class="key-stat-mascot">', /statMascot/.test(appSrc) && /key-stat-mascot/.test(appSrc) && /key-stat-mascot/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
     check('CSS do mascote: canto da tecla, pixel art nítida, linhas abrem espaço', /\.key-stat-mascot\s*\{[^}]*image-rendering:\s*pixelated/.test(css) && /has-mascot[^{]*\.key-stat-meters\s*\{[^}]*padding-right/.test(css));
+    check('deck desenha o mascote de cada linha (r.img → img.key-stat-meter-img) e o CSS existe', /-meter-img/.test(appSrc) && /r\.img/.test(appSrc) && /\.key-stat-meter-img\s*\{[^}]*image-rendering:\s*pixelated/.test(css) && /-meter-img/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
     check('deck não passa a tratar qualquer ação como telemetria', isStatKey({ actionId: 'data:talk' }) === false && isStatKey({ actionId: 'stats:cpu' }) === true);
     check('app.legacy.js também reconhece claude:', /startsWith\(["']claude:["']\)/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.legacy.js'), 'utf8')));
 

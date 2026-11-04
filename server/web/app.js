@@ -717,7 +717,11 @@ function statInnerHtml(cfg, prefix) {
     if (cfg.statSwap && cfg.statBig !== undefined && cfg.statBig !== null && cfg.statHead) cfg = { ...cfg, statBig: cfg.statHead, statHead: cfg.statBig };
     let html = `<div class="${prefix}-head"><span class="${prefix}-label">${escHtml(cfg.statLabel || cfg.title || '')}</span><span class="${prefix}-headval">${escHtml(cfg.statHead !== undefined ? cfg.statHead : (cfg.statSub || ''))}</span></div>`;
     if (mode === 'meters' && Array.isArray(cfg.statRows)) {
-        html += `<div class="${prefix}-meters">` + cfg.statRows.map(r => `<div class="${prefix}-meter"><div class="${prefix}-meter-row"><span class="${prefix}-meter-k">${escHtml(r.k)}</span><span class="${prefix}-meter-sub">${escHtml(r.sub || '')}</span><span class="${prefix}-meter-v">${escHtml(r.v)}</span></div><div class="${prefix}-bar"><i style="width:${Math.max(0, Math.min(100, Number(r.pct) || 0))}%;background:${escHtml(r.color || color)}"></i></div></div>`).join('') + '</div>';
+        // r.img (mascote por linha, Claude Code): a imagem fica à esquerda e o texto + barra ocupam o resto
+        const meterHtml = (r) => `<div class="${prefix}-meter-row"><span class="${prefix}-meter-k">${escHtml(r.k)}</span><span class="${prefix}-meter-sub">${escHtml(r.sub || '')}</span><span class="${prefix}-meter-v">${escHtml(r.v)}</span></div><div class="${prefix}-bar"><i style="width:${Math.max(0, Math.min(100, Number(r.pct) || 0))}%;background:${escHtml(r.color || color)}"></i></div>`;
+        html += `<div class="${prefix}-meters">` + cfg.statRows.map(r => (r.img
+            ? `<div class="${prefix}-meter has-img"><img class="${prefix}-meter-img" src="${escHtml(r.img)}" alt="" draggable="false"><div class="${prefix}-meter-body">${meterHtml(r)}</div></div>`
+            : `<div class="${prefix}-meter">${meterHtml(r)}</div>`)).join('') + '</div>';
         return html;
     }
     if (mode === 'dual' && Array.isArray(cfg.statRows)) {

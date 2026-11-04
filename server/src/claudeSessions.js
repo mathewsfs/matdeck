@@ -88,6 +88,7 @@ const WRITE_SH = 'mkdir -p "$(dirname "$1")" && cat > "$1.tmp" && mv -f "$1.tmp"
 // GIFs do mascote na pasta: `<mtime> <nome>` por arquivo
 const MASCOT_SH = 'for f in "$1"/*.gif; do [ -f "$f" ] || continue; echo "$(stat -c %Y -- "$f" 2>/dev/null || stat -f %m -- "$f" 2>/dev/null || echo 0) ${f##*/}"; done';
 const MASCOT_STATES = ['working', 'waiting', 'done', 'idle', 'limit'];
+const MASCOT_MODES = ['rows', 'corner', 'both'];   // um por linha (canto só com a lista vazia), só no canto, os dois
 const LIMIT_PCT = 90;               // semana do Claude acima disso, com nada rodando, mostra o mascote "quase no limite"
 const MASCOT_RESCAN_MS = 60000;
 
@@ -264,7 +265,7 @@ function sinceText(seconds) {
 const clip = (text, max) => (text.length > max ? text.slice(0, max - 1) + '…' : text);
 
 /** Aparência de uma tecla `claude:*` (campos do updateKey; null para ações desconhecidas). */
-function keyStateFor(actionId, summary, slots = 4, mascot = null) {
+function keyStateFor(actionId, summary, slots = 4, mascot = null, rowMascot = null, mascotMode = 'rows') {
     const id = String(actionId);
     if (id !== 'claude:summary') return null;
     // A lista do relógio: uma linha por sessão na ordem de prioridade (nome · atividade · tempo, barra na cor do estado),
@@ -274,15 +275,19 @@ function keyStateFor(actionId, summary, slots = 4, mascot = null) {
     const sessions = (summary && summary.sessions) || [];
     const max = Math.max(1, Number(slots) || 1);
     const shown = sessions.slice(0, max);
+    const rowImgs = typeof rowMascot === 'function' && (mascotMode === 'rows' || mascotMode === 'both');
     const rows = shown.length
         ? shown.map((s) => ({
             k: s.name,
             v: sinceText(s.since),
             sub: clip(str(s.activity), ROW_SUB_MAX),
             pct: SUMMARY_ROW_PCT[s.state] !== undefined ? SUMMARY_ROW_PCT[s.state] : SUMMARY_ROW_PCT.idle,
-            color: STATE_COLOR[s.state] || STATE_COLOR.idle
+            color: STATE_COLOR[s.state] || STATE_COLOR.idle,
+            ...(rowImgs && rowMascot(s.state) ? { img: rowMascot(s.state) } : {})
         }))
         : [{ k: 'nenhum terminal', v: '', sub: 'abra um terminal do Claude Code', pct: 0, color: STATE_COLOR.idle }];
+    // No canto: sempre em 'corner'/'both'; em 'rows' só quando a lista está vazia (o mascote dormindo faz companhia)
+    const corner = mascotMode === 'rows' ? (shown.length ? null : mascot) : mascot;
     const counts = [];
     if (waiting) counts.push(`${waiting} precisa`);
     if (working) counts.push(`${working} trab.`);
@@ -299,7 +304,7 @@ function keyStateFor(actionId, summary, slots = 4, mascot = null) {
         borderColor: waiting > 0 ? WAITING_BORDER : undefined,
         active: working + waiting > 0,
         badge: null,
-        statMascot: mascot || null
+        statMascot: corner || null
     };
 }
 
@@ -378,6 +383,7 @@ class ClaudeSessions extends EventEmitter {
             dir: expandHome(process.env.MATDECK_CLAUDE_STATE_DIR || str(cfg.sessionsDir).trim() || DEFAULT_DIR),
             slots: Math.max(1, Math.min(MAX_SLOTS, Math.round(Number.isFinite(cfg.slots) ? cfg.slots : 4))),
             mascotDir: str(cfg.mascotDir).trim() ? expandHome(str(cfg.mascotDir).trim()) : '',
+            mascotMode: MASCOT_MODES.includes(cfg.mascotMode) ? cfg.mascotMode : 'rows',
             ttl: {
                 workingTtl: minutes(cfg.workingMinutes, DEFAULT_TTL.workingTtl / 60),
                 doneTtl: minutes(cfg.doneMinutes, DEFAULT_TTL.doneTtl / 60),
@@ -401,6 +407,7 @@ class ClaudeSessions extends EventEmitter {
             lastRead: this.lastRead,
             slots,
             mascotDir: this.settings().mascotDir,
+            mascotMode: this.settings().mascotMode,
             mascots: [...this.mascots.keys()],
             hookPath: this.hookPath(),
             port: this.port,
@@ -413,7 +420,8 @@ class ClaudeSessions extends EventEmitter {
 
     /** Aparência atual de uma tecla `claude:*` (null para ações desconhecidas). */
     stateFor(actionId) {
-        return keyStateFor(actionId, this.summary, this.settings().slots, this.mascotUrl(this.summary.state));
+        const { slots, mascotMode } = this.settings();
+        return keyStateFor(actionId, this.summary, slots, this.mascotUrl(this.summary.state), (state) => this.mascotUrl(state), mascotMode);
     }
 
     /** Intervalo atual entre varreduras do disco. */
