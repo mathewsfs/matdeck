@@ -138,6 +138,13 @@ const rec = (o) => ({ session_id: 's', state: 'working', ts: T, ...o });
     check('tick sem virar o minuto não emite', changes.length === 4);
     clock = T;
 
+    // título da tecla longo não quebra linha nem espreme o valor grande
+    const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'style.css'), 'utf8');
+    const rule = (selector) => { const m = css.match(new RegExp('(?:^|\\n)' + selector.replace(/[.]/g, '\\.') + '\\s*\\{([^}]*)\\}')); return m ? m[1] : ''; };
+    const labelRule = rule('.key-stat-label');
+    check('CSS: .key-stat-label trunca com reticências (nowrap, overflow, text-overflow, min-width:0)', /text-overflow:\s*ellipsis/.test(labelRule) && /white-space:\s*nowrap/.test(labelRule) && /overflow:\s*hidden/.test(labelRule) && /min-width:\s*0/.test(labelRule), labelRule);
+    check('CSS: .key-stat-headval não encolhe', /flex-shrink:\s*0/.test(rule('.key-stat-headval')), rule('.key-stat-headval'));
+
     // primeiro minuto: o "há quanto tempo" (12s) muda a cada segundo; depois, só a cada minuto
     const dir2 = path.join(tmp, 'sessions-since');
     fs.mkdirSync(dir2);

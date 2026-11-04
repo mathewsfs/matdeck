@@ -818,9 +818,14 @@ body.is-offline .deck-grid {
     font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
     letter-spacing: -0.01em;
     color: var(--muted);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .key-stat-headval {
+    flex-shrink: 0;
     font-weight: 700;
     font-size: clamp(11px, calc(2.66vmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
     font-size: clamp(11px, calc(8.5cqmin * var(--key-font-scale) * var(--stat-font, 1)), 34px);
