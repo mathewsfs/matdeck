@@ -160,6 +160,7 @@ class MatDeckServer {
         this.setupFanTelemetry();
         this.setupAiTelemetry();
         this.setupDataTelemetry();
+        this.setupDeckReload();
         this.setupClaudeTelemetry();
         this.setupDiscordRpc();
         this.setupUdpDiscovery();
@@ -995,6 +996,7 @@ class MatDeckServer {
         }
 
         if (event === 'clientHello') {
+            ws._isDeck = true;   // só os decks recebem a recarga periódica (o gerenciador também usa o WebSocket)
             console.log(`[Deck] Dispositivo: ${data.device} (${data.version}) [${data.width}x${data.height}]`);
             // Deck web desatualizado (JS/CSS antigos em cache): pede para recarregar a página
             if (data.device === 'Web Client') {
@@ -1609,6 +1611,29 @@ class MatDeckServer {
         this.aiUsage.start();
     }
 
+    /**
+     * Recarga periódica do deck (ui.deckReloadMinutes): o Safari 9 do iPad 2 às vezes fica com a tela "achatada" (uma linha
+     * no topo e o resto preto) depois de horas; recarregar a página resolve. 0 = desligado. Vale só para clientes que se
+     * apresentaram como deck (clientHello); o gerenciador nunca recebe. Rearmado quando a configuração muda.
+     */
+    setupDeckReload() {
+        if (this.deckReloadTimer) { clearInterval(this.deckReloadTimer); this.deckReloadTimer = null; }
+        if (!this.deckReloadBound) {
+            this.deckReloadBound = true;
+            this.config.on('change', ({ section }) => { if (section === 'ui') this.setupDeckReload(); });
+        }
+        const minutes = Number((this.config.get('ui') || {}).deckReloadMinutes);
+        if (!Number.isFinite(minutes) || minutes <= 0) return;
+        const ms = Math.max(500, Math.round(minutes * 60000));
+        this.deckReloadTimer = setInterval(() => {
+            const msg = JSON.stringify({ event: 'reload', force: true, reason: 'periodic' });
+            for (const client of this.clients) {
+                if (client._isDeck && client.readyState === 1) { try { client.send(msg); } catch (e) { /* cliente caiu */ } }
+            }
+        }, ms);
+        if (typeof this.deckReloadTimer.unref === 'function') this.deckReloadTimer.unref();
+    }
+
     /** Teclas `data:*` da tela atual acompanham a Data (estado pelo WebSocket dela; só o que mudou é enviado). */
     setupDataTelemetry() {
         this.dataLastSent = new Map();
@@ -1825,6 +1850,7 @@ class MatDeckServer {
             this.aiUsage.stop();
             this.dataAssistant.stop();
             this.claudeSessions.stop();
+            if (this.deckReloadTimer) { clearInterval(this.deckReloadTimer); this.deckReloadTimer = null; }
             this.windowDetector.stop();
             for (const p of this.profiles.values()) { if (typeof p.stop === 'function') { try { p.stop(); } catch (e) {} } }
             for (const ws of this.clients) { try { ws.close(); } catch (e) {} }

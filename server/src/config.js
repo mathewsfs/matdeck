@@ -72,7 +72,8 @@ const DEFAULTS = {
         removedProfiles: [],     // abas embutidas excluídas pelo usuário (somem do tablet e do gerenciador; restauráveis)
         autoDetect: false,       // Auto-Perfil (troca pela janela em foco) ligado; nasce desligado e lembra o último estado
         autoProfiles: {},        // app detectado -> perfil a ativar ('' = o perfil de mesmo nome, 'none' = não trocar)
-        tray: true               // ícone na bandeja do sistema enquanto o servidor roda (scripts/matdeck-tray.py)
+        tray: true,              // ícone na bandeja do sistema enquanto o servidor roda (scripts/matdeck-tray.py)
+        deckReloadMinutes: 0     // recarrega a página do deck nos tablets a cada N minutos (0 = desligado; iPad 2 fica estável com 3)
     }
 };
 

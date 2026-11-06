@@ -1331,6 +1331,12 @@ function handleServerMessage(msg) {
       });
       break;
     case 'reload':
+      if (msg.force) {
+        setTimeout(function () {
+          return location.reload();
+        }, 300);
+        break;
+      }
       if (msg.version && sessionStorage.getItem('matdeck-reloaded-for') !== msg.version) {
         try {
           sessionStorage.setItem('matdeck-reloaded-for', msg.version);
@@ -3083,5 +3089,34 @@ document.addEventListener('visibilitychange', function () {
   }
 });
 setInterval(syncViewportHeight, 2000);
+var LAYOUT_STRIKES = 2;
+var LAYOUT_RELOAD_COOLDOWN_MS = 60000;
+var layoutStrikes = 0;
+function layoutLooksBroken(key, win) {
+  if (!key || !win) return false;
+  var h = Number(key.offsetHeight);
+  var wh = Number(win.innerHeight);
+  return isFinite(h) && isFinite(wh) && wh >= 300 && h > 0 && h < 24;
+}
+function checkLayoutHealth() {
+  try {
+    if (document.visibilityState === 'hidden') return;
+    var key = gridEl.querySelector('.deck-key');
+    if (!layoutLooksBroken(key, window)) {
+      layoutStrikes = 0;
+      return;
+    }
+    layoutStrikes += 1;
+    if (layoutStrikes < LAYOUT_STRIKES) return;
+    layoutStrikes = 0;
+    var last = Number(sessionStorage.getItem('matdeck-layout-reload-at')) || 0;
+    if (Date.now() - last < LAYOUT_RELOAD_COOLDOWN_MS) return;
+    try {
+      sessionStorage.setItem('matdeck-layout-reload-at', String(Date.now()));
+    } catch (e) {}
+    location.reload();
+  } catch (e) {}
+}
+setInterval(checkLayoutHealth, 3000);
 startSession();
 window.MATDECK_APP_BOOTED = true;

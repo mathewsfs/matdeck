@@ -412,6 +412,13 @@
                         <h3>Dispositivos (acesso ao deck)</h3>
                         <p class="settings-note">Este gerenciador só abre no computador onde o MatDeck está rodando. Um tablet ou celular que abrir o deck pela rede pede um <strong>PIN de 4 dígitos</strong>, que aparece no canto desta tela; digitado uma vez, o aparelho fica lembrado. Remova um aparelho para que ele volte a pedir PIN.</p>
                         <div class="devices-list" id="devices-list"></div>
+                        <div class="settings-row">
+                            <div class="control-group">
+                                <label for="cfg-ui-deck-reload">Recarregar o deck nos tablets a cada (min) <span class="label-opt">(0 = desligado)</span></label>
+                                <input type="number" id="cfg-ui-deck-reload" class="form-input" data-path="ui.deckReloadMinutes" data-type="number" min="0" max="1440" inputmode="numeric">
+                            </div>
+                        </div>
+                        <p class="settings-note">Para tablets antigos que ficam com a tela "achatada" depois de horas (iPad 2): o servidor pede ao deck para recarregar a página nesse intervalo. O deck também recarrega sozinho ao detectar a tela quebrada. O gerenciador nunca é recarregado.</p>
                     </section>
 
                     <section class="settings-section">

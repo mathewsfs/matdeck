@@ -299,6 +299,7 @@ Os ícones das teclas vêm de [Lucide](https://lucide.dev) (ISC) e [Simple Icons
 - Google Meet, Nextcloud Talk e o Discord sem Client ID dependem de foco de janela + atalho: se o atalho for alterado no app, mude também no MatDeck.
 - Plugins Elgato: só os em Node.js; encoders, `switchToProfile` e plugins nativos de Windows/macOS são ignorados.
 - O gerenciador (`/manage`) é para o navegador do PC; no tablet e no iPad use só o deck. O deck em si roda nos dois: o projeto nasceu num tablet Android 4.4.4 e o iPad 2 (iOS 9) usa o `app.legacy.js`.
+- iPad 2: se depois de horas a tela ficar "achatada" (uma linha no topo e o resto preto), o deck recarrega sozinho ao detectar; dá também para programar uma recarga periódica em Ajustes → Dispositivos ("Recarregar o deck nos tablets a cada N min").
 - No iPad a tela cheia é pela Tela de Início (Safari → Compartilhar → "Adicionar à Tela de Início"); aberto como aba comum do Safari a barra de endereço fica visível. "Manter a tela acesa" não existe como API no iOS 9: deixe o Bloqueio Automático do iPad em "Nunca" enquanto usar o deck.
 - Claude Code no Maestri: o toque na tecla traz a janela do Maestri para a frente, mas não escolhe o terminal específico dentro dela.
 - Claude Code, terminal fechado: um terminal fechado sem `SessionEnd` continua como "Pronto" no resumo até `staleMinutes`. (Esc e permissão negada são lidos do transcript, então não prendem a sessão em "precisa".)

@@ -417,6 +417,8 @@ function handleServerMessage(msg) {
             wsSend({ event: 'layoutDump', dump: layoutDump() });
             break;
         case 'reload':
+            // Recarga periódica pedida pelo servidor (Ajustes → Dispositivos): sempre recarrega
+            if (msg.force) { setTimeout(() => location.reload(), 300); break; }
             // Servidor atualizado: recarrega para pegar o app.js/style.css novos (uma vez por versão)
             if (msg.version && sessionStorage.getItem('matdeck-reloaded-for') !== msg.version) {
                 try { sessionStorage.setItem('matdeck-reloaded-for', msg.version); } catch (e) { /* ignore */ }
@@ -1902,6 +1904,34 @@ window.addEventListener('orientationchange', function () { setTimeout(syncViewpo
 window.addEventListener('pageshow', function () { syncViewportHeight(); setTimeout(syncViewportHeight, 300); });
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') { syncViewportHeight(); setTimeout(syncViewportHeight, 300); } });
 setInterval(syncViewportHeight, 2000);
+
+// Vigia da tela "achatada" (iPad 2): se as teclas estão desenhadas mas uma delas tem altura ínfima numa janela normal,
+// o layout quebrou; duas leituras seguidas assim recarregam a página (no máximo uma vez por minuto)
+const LAYOUT_STRIKES = 2;
+const LAYOUT_RELOAD_COOLDOWN_MS = 60000;
+let layoutStrikes = 0;
+/** Tecla desenhada com menos de 24 px de altura numa janela de pelo menos 300 px: layout quebrado. */
+function layoutLooksBroken(key, win) {
+    if (!key || !win) return false;
+    const h = Number(key.offsetHeight);
+    const wh = Number(win.innerHeight);
+    return isFinite(h) && isFinite(wh) && wh >= 300 && h > 0 && h < 24;
+}
+function checkLayoutHealth() {
+    try {
+        if (document.visibilityState === 'hidden') return;
+        const key = gridEl.querySelector('.deck-key');
+        if (!layoutLooksBroken(key, window)) { layoutStrikes = 0; return; }
+        layoutStrikes += 1;
+        if (layoutStrikes < LAYOUT_STRIKES) return;
+        layoutStrikes = 0;
+        const last = Number(sessionStorage.getItem('matdeck-layout-reload-at')) || 0;
+        if (Date.now() - last < LAYOUT_RELOAD_COOLDOWN_MS) return;
+        try { sessionStorage.setItem('matdeck-layout-reload-at', String(Date.now())); } catch (e) { /* ignore */ }
+        location.reload();
+    } catch (e) { /* ignore */ }
+}
+setInterval(checkLayoutHealth, 3000);
 
 startSession();
 window.MATDECK_APP_BOOTED = true; // o carregador do index.html acusa se a inicialização parou antes daqui
