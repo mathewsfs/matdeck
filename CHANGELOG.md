@@ -6,6 +6,8 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 ## [Não lançado]
 
 ### Adicionado
+- Recarga periódica do deck nos tablets (Ajustes → Dispositivos, `ui.deckReloadMinutes`; 0 = desligado) e um vigia
+  no próprio deck que recarrega a página ao detectar a tela "achatada" do iPad 2 (teclas com altura ínfima).
 - Grupo **Claude Code**: a tecla **Claude: resumo** (2×2 por padrão, estique até a largura da tela) lista os
   terminais do Claude Code abertos no PC como a tela do relógio: uma linha por sessão com o nome (do `/rename`,
   senão o título automático, senão a pasta), a atividade e há quanto tempo, barra na cor do estado, quem precisa
