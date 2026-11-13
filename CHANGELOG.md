@@ -6,6 +6,12 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 ## [Não lançado]
 
 ### Adicionado
+- **Iniciar com o PC** (Ajustes → Iniciar com o PC): caixa que cria ou remove o atalho de autostart
+  `~/.config/autostart/br.com.matdeck.MatDeck.desktop` na hora, pelo host (funciona no Flatpak). O servidor sobe com a
+  sessão, com o ícone na bandeja e sem abrir o gerenciador; desligar pela Inicialização automática do KDE também
+  vale (o arquivo é a fonte da verdade). Novo modo `matdeck autostart` no lançador do Flatpak (sai se já estiver no
+  ar). Rotas `GET/POST /api/autostart` (POST só do próprio PC). No macOS a opção fica oculta (LaunchAgent do
+  instalador). Módulo: `src/platform/linux/autostart.js`.
 - Recarga periódica do deck nos tablets (Ajustes → Dispositivos, `ui.deckReloadMinutes`; 0 = desligado) e um vigia
   no próprio deck que recarrega a página ao detectar a tela "achatada" do iPad 2 (teclas com altura ínfima).
 - Grupo **Claude Code**: a tecla **Claude: resumo** (2×2 por padrão, estique até a largura da tela) lista os

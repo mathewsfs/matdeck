@@ -64,6 +64,14 @@ function create(options = {}) {
         hardware: new StubHardwareMonitor(options.hardwareIntervalMs || 1000),
         tray,
         session: createSession(keys),
+        /** No macOS o instalador já cria o LaunchAgent do servidor; o controle de Ajustes fica oculto. */
+        autostart: {
+            supported: false,
+            file: null,
+            async status() { return { supported: false, enabled: false, file: null, reason: 'No macOS o instalador cria o LaunchAgent do servidor; use Ajustes do Sistema → Itens de Início.' }; },
+            async enable() { throw new Error('Não suportado no macOS: o instalador cria o LaunchAgent do servidor.'); },
+            async disable() { throw new Error('Não suportado no macOS: o instalador cria o LaunchAgent do servidor.'); }
+        },
 
         describe() {
             const caps = keys.capabilitiesCached() || {};

@@ -503,6 +503,24 @@ class MatDeckServer {
             res.set('Cache-Control', 'public, max-age=86400, immutable');
             res.send(buffer);
         });
+        // Iniciar com o PC: a fonte da verdade é o .desktop de autostart (plataforma); POST só do próprio PC
+        this.app.get('/api/autostart', async (req, res) => {
+            try { res.json(await this.platform.autostart.status()); } catch (e) { res.status(500).json({ supported: true, enabled: false, error: e.message }); }
+        });
+        this.app.post('/api/autostart', async (req, res) => {
+            const ip = (req.socket.remoteAddress || '').replace('::ffff:', '');
+            if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) return res.status(403).json({ success: false, error: 'Só a partir desta máquina' });
+            if (!this.platform.autostart.supported) return res.status(400).json({ success: false, error: 'Não suportado no macOS: o instalador cria o LaunchAgent do servidor.' });
+            const enabled = !!(req.body && req.body.enabled);
+            try {
+                if (enabled) await this.platform.autostart.enable(); else await this.platform.autostart.disable();
+                console.log(`[MatDeck] Iniciar com o PC ${enabled ? 'ligado' : 'desligado'} (${this.platform.autostart.file})`);
+                res.json({ success: true, ...(await this.platform.autostart.status()) });
+            } catch (e) {
+                res.status(500).json({ success: false, error: e.message });
+            }
+        });
+
         this.app.post('/api/claude/refresh', (req, res) => {
             const ip = (req.socket.remoteAddress || '').replace('::ffff:', '');
             if (!['127.0.0.1', '::1', 'localhost'].includes(ip)) return res.status(403).json({ error: 'Só a partir desta máquina' });
