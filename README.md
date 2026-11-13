@@ -165,6 +165,8 @@ roteiro `docs/superpowers/plans/2026-10-24-macos-fase2-roteiro-mac.md`.
 2. Em **OAuth2**, adicione o redirect `http://localhost` e copie o **Client ID** e o **Client Secret**.
 3. Cole em **Ajustes → Discord** no gerenciador e salve. O Discord abre uma janela pedindo autorização: aceite.
 
+A ordem não importa: o MatDeck pode subir antes do Discord (ele tenta o socket de novo a cada minuto). Se as teclas ficarem em "Discord não está aberto" com o Discord aberto, o pacote instalado é anterior a essa correção: atualize o Flatpak.
+
 Os tokens ficam em `config.json` (fora do git) e são renovados sozinhos. PTT pela API: segurar desmuta e soltar muta (com o Discord em "atividade de voz"); se o Discord estiver em modo Push to Talk, a tecla segura o atalho configurado abaixo.
 
 **Reserva por teclado:** sem Client ID (ou com o Discord fechado para a API), o MatDeck **foca a janela do Discord e envia os atalhos padrão** (`Ctrl+Shift+M` mute, `Ctrl+Shift+D` deafen). Isso exige `ydotool` ativo e, no KDE Wayland, `kdotool` (ou o fallback KWin), e não funciona com o Discord na bandeja. Push-to-talk por teclado: configure em *Discord > Configurações > Teclas de atalho* o mesmo atalho que está em **Ajustes → Discord** (padrão `Ctrl+Shift+P`).

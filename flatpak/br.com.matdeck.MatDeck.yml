@@ -18,7 +18,9 @@ finish-args:
   - --socket=wayland                         # só para o servidor saber que há sessão gráfica (bandeja)
   - --socket=fallback-x11
   - --filesystem=xdg-run/discord-ipc-0        # socket IPC do Discord nativo (controle de mic/surdo)
-  - --filesystem=xdg-run/app/com.discordapp.Discord  # socket IPC do Discord flatpak
+  # Socket IPC do Discord flatpak. `:create` cria a pasta na partida: sem isso o Flatpak só a monta se ela já
+  # existir, e como /run/user é limpo a cada boot, MatDeck aberto antes do Discord nunca enxergava o socket.
+  - --filesystem=xdg-run/app/com.discordapp.Discord:create
 build-options:
   append-path: /usr/lib/sdk/node24/bin
 modules:
