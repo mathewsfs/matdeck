@@ -421,6 +421,18 @@
                         <p class="settings-note">Para tablets antigos que ficam com a tela "achatada" depois de horas (iPad 2): o servidor pede ao deck para recarregar a página nesse intervalo. O deck também recarrega sozinho ao detectar a tela quebrada. O gerenciador nunca é recarregado.</p>
                     </section>
 
+                    <section class="settings-section" id="autostart-section">
+                        <h3>Iniciar com o PC</h3>
+                        <div class="control-group checkbox-group">
+                            <label>
+                                <input type="checkbox" id="cfg-autostart">
+                                Iniciar o MatDeck ao entrar na sessão (servidor e ícone da bandeja, sem abrir o gerenciador)
+                            </label>
+                        </div>
+                        <p class="settings-note" id="autostart-note">Vale na hora, sem precisar salvar. Cria ou remove um atalho em <code>~/.config/autostart</code>, o mesmo lugar que o KDE e o GNOME usam; se você desligar por lá, aqui aparece desligado. Com isso o MatDeck sobe antes do Discord e dos demais apps, e as integrações conectam quando eles abrirem.</p>
+                        <p class="settings-note" id="autostart-status" aria-live="polite"></p>
+                    </section>
+
                     <section class="settings-section">
                         <h3>Auto-Perfil (troca pela janela em foco)</h3>
                         <p class="settings-note">O botão <strong>AUTO</strong> da barra liga e desliga a troca automática. O MatDeck nasce com ele desligado e lembra o último estado. Abaixo, escolha o perfil que cada aplicativo ativa quando sua janela ganha o foco, ou "Não trocar" para ignorá-lo.</p>

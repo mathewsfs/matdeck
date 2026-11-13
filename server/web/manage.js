@@ -2259,6 +2259,48 @@ function claudeHookSnippet(hookPath, dir, defaultDir) {
     return JSON.stringify({ hooks }, null, 2);
 }
 let claudeSnippetText = '';   // trecho real; vazio enquanto não há (o <pre> pode mostrar "Carregando…" ou um erro)
+// Iniciar com o PC: a fonte da verdade é o .desktop de autostart no host; a caixa aplica na hora (fora do Salvar)
+const autostartSection = document.getElementById('autostart-section');
+const autostartCheck = document.getElementById('cfg-autostart');
+const autostartStatus = document.getElementById('autostart-status');
+
+function showAutostart(info, error) {
+    if (!autostartSection || !autostartCheck || !autostartStatus) return;
+    if (info && info.supported === false) { setHidden(autostartSection, true); return; }
+    setHidden(autostartSection, false);
+    autostartCheck.disabled = false;
+    if (error) { autostartStatus.textContent = error; autostartStatus.className = 'settings-note is-error'; return; }
+    autostartCheck.checked = !!(info && info.enabled);
+    autostartStatus.className = 'settings-note';
+    autostartStatus.textContent = info && info.enabled ? `Ligado: ${info.file}` : 'Desligado: o MatDeck só abre quando você clicar nele.';
+}
+
+async function loadAutostart() {
+    if (!autostartCheck) return;
+    autostartCheck.disabled = true;
+    const res = await apiFetch('/api/autostart');
+    if (!res.ok || !res.data) { showAutostart(null, 'Não foi possível consultar o atalho de inicialização.'); return; }
+    showAutostart(res.data);
+}
+
+if (autostartCheck) {
+    autostartCheck.addEventListener('change', async () => {
+        const enabled = autostartCheck.checked;
+        autostartCheck.disabled = true;
+        autostartStatus.textContent = enabled ? 'Criando o atalho…' : 'Removendo o atalho…';
+        autostartStatus.className = 'settings-note';
+        const res = await apiJson('/api/autostart', 'POST', { enabled });
+        if (!res.ok || !res.data || !res.data.success) {
+            autostartCheck.checked = !enabled;
+            showAutostart({ supported: true, enabled: !enabled }, (res.data && res.data.error) || `Falha ao ${enabled ? 'ligar' : 'desligar'} (${res.status || 'sem conexão'}).`);
+            toast('Não foi possível alterar "Iniciar com o PC".', { type: 'error' });
+            return;
+        }
+        showAutostart(res.data);
+        toast(enabled ? 'O MatDeck vai iniciar com o PC.' : 'O MatDeck não inicia mais com o PC.', { type: 'success' });
+    });
+}
+
 async function loadClaudeInfo() {
     const snippetEl = document.getElementById('claude-hook-snippet');
     const statusEl = document.getElementById('claude-status');
@@ -2368,7 +2410,7 @@ async function openSettings() {
     settingsModal.classList.add('active');
     settingsModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    const [res, autoRes] = await Promise.all([apiFetch('/api/config'), apiFetch('/api/autodetect'), loadDevices(), loadClaudeInfo()]);
+    const [res, autoRes] = await Promise.all([apiFetch('/api/config'), apiFetch('/api/autodetect'), loadDevices(), loadClaudeInfo(), loadAutostart()]);
     setHidden(settingsLoading, true);
     if (!res.ok || !res.data || typeof res.data !== 'object') {
         settingsError.textContent = 'Não foi possível carregar as configurações. Verifique se o servidor está em execução.';

@@ -3,6 +3,7 @@
 #   matdeck          sobe o servidor (ou abre o gerenciador se já estiver rodando)
 #   matdeck open     só abre o gerenciador no navegador
 #   matdeck server   só sobe o servidor (sem abrir navegador)
+#   matdeck autostart  idem, mas sai em silêncio se o servidor já estiver no ar (login da sessão)
 PORT="${PORT:-8888}"
 export MATDECK_DATA_DIR="${MATDECK_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/matdeck}"
 mkdir -p "$MATDECK_DATA_DIR"
@@ -21,6 +22,9 @@ case "${1:-}" in
         exit 0
         ;;
     server)
+        ;;
+    autostart)
+        is_running && exit 0
         ;;
     *)
         if is_running; then

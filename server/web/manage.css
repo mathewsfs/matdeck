@@ -1031,4 +1031,5 @@ body.is-pdrag, body.is-pdrag * { cursor: grabbing !important; user-select: none;
 
 .settings-note { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .settings-note strong { color: var(--text); font-weight: 600; }
+.settings-note.is-error { color: var(--danger, #e5484d); }
 .auto-profiles { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }

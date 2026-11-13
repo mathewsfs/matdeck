@@ -4,6 +4,7 @@ const { createKeys } = require('./keys');
 const { createWindows } = require('./windows');
 const { createApps } = require('./apps');
 const { createSystem } = require('./system');
+const { createAutostart } = require('./autostart');
 const AudioMixer = require('../../audioMixer');
 const SpotifyMonitor = require('../../spotify');
 const MediaPlayers = require('../../mediaPlayers');
@@ -42,6 +43,8 @@ function create(options = {}) {
             stop() { return tray ? tray.stop() : Promise.resolve(); }
         },
         session: { lock: () => system.lock() },
+        /** Iniciar com o PC: .desktop em ~/.config/autostart, gravado pelo host. */
+        autostart: createAutostart(),
 
         /** Linha de sessão do log de início: compositor, desktop, teclas, foco e detecção de janela. */
         describe() {
