@@ -5,6 +5,12 @@ e as versões seguem [SemVer](https://semver.org/lang/pt-BR/). Betas são pré-r
 
 ## [Não lançado]
 
+### Corrigido
+- Flatpak: a API do Discord ficava "fechada" (socket IPC não encontrado) mesmo com o Discord aberto sempre que o
+  MatDeck subia antes dele. O sandbox só montava a pasta `xdg-run/app/com.discordapp.Discord` se ela já existisse
+  na partida, e `/run/user` é limpo a cada boot; agora a pasta é criada na partida (`:create`) e o socket aparece
+  assim que o Discord abre.
+
 ### Adicionado
 - Recarga periódica do deck nos tablets (Ajustes → Dispositivos, `ui.deckReloadMinutes`; 0 = desligado) e um vigia
   no próprio deck que recarrega a página ao detectar a tela "achatada" do iPad 2 (teclas com altura ínfima).
